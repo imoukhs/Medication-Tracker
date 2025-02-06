@@ -152,35 +152,27 @@ const ProfileScreen = () => {
       onPress={onPress}
     >
       <View style={styles.optionIconContainer}>
-        <Ionicons
-          name={icon as any}
-          size={24}
-          color={destructive ? colors.error : colors.primary}
-        />
+        <Ionicons name={icon as any} size={24} color={destructive ? colors.error : colors.primary} />
       </View>
       <View style={styles.optionContent}>
-        <Text
-          style={[
-            styles.optionLabel,
-            { color: destructive ? colors.error : colors.text },
-          ]}
-        >
+        <Text style={[styles.optionLabel, { color: destructive ? colors.error : colors.text }]}>
           {label}
         </Text>
       </View>
-      {showArrow && (
-        <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
-      )}
+      {showArrow && <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />}
     </TouchableOpacity>
   );
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
         <Text style={styles.headerTitle}>Profile</Text>
       </View>
 
-      <View style={styles.content}>
+      <ScrollView 
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+      >
         <View style={[styles.profileCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.avatarContainer}>
             <TouchableOpacity onPress={handleImagePick}>
@@ -245,6 +237,11 @@ const ProfileScreen = () => {
             'Shared Access',
             () => navigation.navigate('SharedAccess', { modal: true })
           )}
+          {renderProfileOption(
+            'trophy',
+            'Achievements',
+            () => navigation.navigate('Achievements', { modal: true })
+          )}
         </View>
 
         <View style={[styles.logoutSection]}>
@@ -256,10 +253,9 @@ const ProfileScreen = () => {
             true
           )}
         </View>
-      </View>
-
+      </ScrollView>
       {renderEditModal()}
-    </ScrollView>
+    </View>
   );
 };
 
@@ -270,9 +266,18 @@ const styles = StyleSheet.create({
   header: {
     padding: 20,
     paddingTop: 60,
-    paddingBottom: 30,
+    paddingBottom: 20,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    zIndex: 1,
   },
   headerTitle: {
     fontSize: 24,
@@ -280,9 +285,13 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   content: {
-    padding: 20,
+    flex: 1,
+  },
+  contentContainer: {
+    paddingVertical: 20,
   },
   profileCard: {
+    marginHorizontal: 20,
     padding: 20,
     borderRadius: 16,
     alignItems: 'center',
@@ -342,6 +351,7 @@ const styles = StyleSheet.create({
   },
   optionsContainer: {
     marginBottom: 8,
+    paddingHorizontal: 20,
   },
   optionItem: {
     flexDirection: 'row',
@@ -362,9 +372,11 @@ const styles = StyleSheet.create({
   },
   optionLabel: {
     fontSize: 16,
+    color: '#000',
   },
   logoutSection: {
     marginTop: 24,
+    paddingHorizontal: 20,
   },
   modalContainer: {
     flex: 1,

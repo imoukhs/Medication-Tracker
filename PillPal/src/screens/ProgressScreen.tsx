@@ -15,6 +15,12 @@ const ProgressScreen = () => {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [stats, setStats] = useState({
+    weeklyAdherence: 0,
+    monthlyAdherence: 0,
+    totalDoses: 0,
+    streak: 0
+  });
 
   useEffect(() => {
     loadProgressData();
@@ -25,6 +31,18 @@ const ProgressScreen = () => {
     try {
       const recentHistory = await HistoryService.getRecentHistory(7);
       setHistory(recentHistory);
+      
+      // Calculate stats
+      const weeklyAdherence = await HistoryService.calculateAdherenceRate(7);
+      const monthlyAdherence = await HistoryService.calculateAdherenceRate(30);
+      const streak = await HistoryService.calculateCurrentStreak();
+      
+      setStats({
+        weeklyAdherence,
+        monthlyAdherence,
+        totalDoses: recentHistory.length,
+        streak
+      });
     } catch (error) {
       console.error('Error loading progress data:', error);
     }
@@ -32,12 +50,12 @@ const ProgressScreen = () => {
 
   const loadAchievements = async () => {
     const data = await AchievementService.getAchievements();
-    setAchievements(data);
+    setAchievements(data.slice(0, 3)); // Show only the 3 most recent achievements
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadProgressData();
+    await Promise.all([loadProgressData(), loadAchievements()]);
     setRefreshing(false);
   };
 
@@ -80,75 +98,85 @@ const ProgressScreen = () => {
   };
 
   return (
-    <ScrollView 
-      style={[styles.container, { backgroundColor: colors.background }]}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
         <Text style={styles.headerTitle}>Your Progress</Text>
       </View>
 
-      <View style={styles.content}>
+      <ScrollView 
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         <AdherenceStats />
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Activity</Text>
-          {history.length > 0 ? (
-            history.map(entry => (
-              <View
-                key={entry.id}
-                style={[styles.activityItem, {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                }]}
-              >
-                <Ionicons
-                  name={entry.taken ? 'checkmark-circle' : 'close-circle'}
-                  size={24}
-                  color={entry.taken ? colors.success : colors.error}
-                />
-                <View style={styles.activityContent}>
-                  <Text style={[styles.activityText, { color: colors.text }]}>
-                    {entry.taken ? 'Medication taken' : 'Medication missed'}
-                  </Text>
-                  <Text style={[styles.activityTime, { color: colors.textSecondary }]}>
-                    {new Date(entry.timestamp).toLocaleString()}
-                  </Text>
-                </View>
-              </View>
-            ))
-          ) : (
-            <View style={[styles.emptyState, { borderColor: colors.border }]}>
-              <Ionicons name="calendar-outline" size={48} color={colors.textSecondary} />
-              <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>
-                No activity recorded yet
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Statistics</Text>
+          <View style={styles.statsGrid}>
+            <View style={[styles.statItem, { backgroundColor: `${colors.primary}10` }]}>
+              <Ionicons name="calendar" size={24} color={colors.primary} />
+              <Text style={[styles.statValue, { color: colors.text }]}>
+                {Math.round(stats.weeklyAdherence)}%
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                Weekly Adherence
               </Text>
             </View>
-          )}
+            <View style={[styles.statItem, { backgroundColor: `${colors.primary}10` }]}>
+              <Ionicons name="trending-up" size={24} color={colors.primary} />
+              <Text style={[styles.statValue, { color: colors.text }]}>
+                {Math.round(stats.monthlyAdherence)}%
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                Monthly Adherence
+              </Text>
+            </View>
+            <View style={[styles.statItem, { backgroundColor: `${colors.primary}10` }]}>
+              <Ionicons name="flame" size={24} color={colors.primary} />
+              <Text style={[styles.statValue, { color: colors.text }]}>
+                {stats.streak}
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                Day Streak
+              </Text>
+            </View>
+            <View style={[styles.statItem, { backgroundColor: `${colors.primary}10` }]}>
+              <Ionicons name="medical" size={24} color={colors.primary} />
+              <Text style={[styles.statValue, { color: colors.text }]}>
+                {stats.totalDoses}
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                Total Doses
+              </Text>
+            </View>
+          </View>
         </View>
 
-        <View style={styles.achievementsContainer}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Achievements</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.achievementsHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Achievements</Text>
+            <Text style={[styles.viewAll, { color: colors.primary }]}>View All</Text>
+          </View>
           <View style={styles.achievementsGrid}>
             {achievements.map((achievement) => (
               <View
                 key={achievement.id}
                 style={[
                   styles.achievementCard,
-                  { backgroundColor: colors.surface, borderColor: colors.border }
+                  { 
+                    backgroundColor: `${colors.primary}10`,
+                    borderColor: achievement.completed ? colors.primary : colors.border 
+                  }
                 ]}
               >
-                <View style={styles.progressCircle}>
-                  <CircularProgress progress={achievement.progress / achievement.target} />
-                  <View style={styles.achievementIcon}>
-                    <Ionicons
-                      name={achievement.icon as any}
-                      size={24}
-                      color={achievement.completed ? colors.primary : colors.textSecondary}
-                    />
-                  </View>
+                <View style={styles.achievementIcon}>
+                  <Ionicons
+                    name={achievement.icon as any}
+                    size={32}
+                    color={achievement.completed ? colors.primary : colors.textSecondary}
+                  />
                 </View>
                 <Text style={[styles.achievementName, { color: colors.text }]}>
                   {achievement.name}
@@ -160,8 +188,8 @@ const ProgressScreen = () => {
             ))}
           </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 };
 
@@ -177,81 +205,79 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 24,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#fff',
   },
   content: {
     flex: 1,
   },
-  section: {
+  contentContainer: {
+    paddingVertical: 20,
+  },
+  card: {
+    marginHorizontal: 20,
+    marginTop: 20,
     padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 15,
-  },
-  activityItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-  },
-  activityContent: {
-    marginLeft: 15,
-    flex: 1,
-  },
-  activityText: {
-    fontSize: 16,
-    marginBottom: 4,
-  },
-  activityTime: {
-    fontSize: 14,
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 30,
     borderRadius: 16,
     borderWidth: 1,
-    borderStyle: 'dashed',
   },
-  emptyStateText: {
-    fontSize: 16,
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 20,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  statItem: {
+    width: '48%',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginTop: 8,
+  },
+  statLabel: {
+    fontSize: 14,
+    marginTop: 4,
     textAlign: 'center',
-    marginTop: 15,
   },
-  achievementsContainer: {
-    padding: 20,
+  achievementsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  viewAll: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   achievementsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    gap: 12,
   },
   achievementCard: {
-    width: '48%',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
+    width: '31%',
+    aspectRatio: 1,
+    borderRadius: 16,
+    padding: 12,
     alignItems: 'center',
-    borderWidth: 1,
-  },
-  progressCircle: {
-    position: 'relative',
-    marginBottom: 12,
+    justifyContent: 'center',
+    borderWidth: 2,
   },
   achievementIcon: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: [{ translateX: -12 }, { translateY: -12 }],
+    marginBottom: 8,
   },
   achievementName: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 4,

@@ -91,7 +91,7 @@ const AdherenceStats: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 16,
+    width: '100%',
   },
   card: {
     borderRadius: 16,

@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../context/ThemeContext';
-import { RootStackParamList, UserRelationship, UserRole } from '../types';
+import { RootStackParamList, UserRelationship, UserRole } from '../types/';
 import UserRelationshipService from '../services/UserRelationshipService';
 import RolePickerModal from '../components/RolePickerModal';
 

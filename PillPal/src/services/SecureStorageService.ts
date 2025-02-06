@@ -1,8 +1,8 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
-const BIOMETRIC_CREDENTIALS_KEY = '@biometric_credentials';
-const BIOMETRIC_ENABLED_KEY = '@biometric_enabled';
+const BIOMETRIC_CREDENTIALS_KEY = 'biometric_credentials';
+const BIOMETRIC_ENABLED_KEY = 'biometric_enabled';
 
 class SecureStorageService {
   async storeBiometricCredentials(email: string, password: string): Promise<void> {

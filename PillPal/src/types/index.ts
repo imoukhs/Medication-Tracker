@@ -21,11 +21,13 @@ export interface Medication {
   dosage: string;
   frequency: string;
   instructions: string;
-  scheduledTime: Date;
+  scheduled_time: Date;
   supply: number;
-  lowSupplyThreshold: number;
-  ownerId: string;
-  sharedWith: string[];
+  low_supply_threshold: number;
+  owner_id: string;
+  shared_with: string[];
+  created_at?: Date;
+  updated_at?: Date;
 }
 
 export interface EmergencyContact {
@@ -46,7 +48,7 @@ export interface HistoryEntry {
 export interface NotificationUpdate {
   title?: string;
   body?: string;
-  scheduledTime?: Date;
+  scheduled_time?: Date;
   data?: object;
 }
 
@@ -100,19 +102,10 @@ export type RootStackParamList = {
   PrivacyAndSecurity: { modal?: boolean };
   SharedAccess: { modal?: boolean };
   Achievements: { modal?: boolean };
+  ChangePassword: { modal?: boolean };
 };
 
 export type UserRole = 'patient' | 'caregiver' | 'healthcare_provider' | 'family_member';
-
-export interface UserRelationship {
-  id: string;
-  userId: string;
-  relatedUserId: string;
-  role: UserRole;
-  permissions: UserPermissions;
-  status: 'pending' | 'active' | 'rejected';
-  createdAt: Date;
-}
 
 export interface UserPermissions {
   canViewMedications: boolean;
@@ -122,4 +115,14 @@ export interface UserPermissions {
   canEditMedicalInfo: boolean;
   canManageEmergencyContacts: boolean;
   canReceiveAlerts: boolean;
+}
+
+export interface UserRelationship {
+  id: string;
+  userId: string;
+  relatedUserId: string;
+  role: UserRole;
+  permissions: UserPermissions;
+  status: 'pending' | 'active' | 'rejected';
+  createdAt: Date;
 }
