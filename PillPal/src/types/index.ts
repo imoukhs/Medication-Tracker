@@ -68,6 +68,7 @@ export interface Achievement {
   id: string;
   name: string;
   description: string;
+  icon: string;
   progress: number;
   target: number;
   completed: boolean;
@@ -82,17 +83,23 @@ export interface NotificationResponse {
 
 export type RootStackParamList = {
   MainTabs: undefined;
-  EmergencyContact: { modal: boolean };
-  PersonalInformation: { modal: boolean };
-  MedicalInformation: { modal: boolean };
-  NotificationPreferences: { modal: boolean };
-  PrivacyAndSecurity: { modal: boolean };
-  SharedAccess: { modal: boolean };
+  Login: undefined;
+  SignUp: undefined;
+  Home: undefined;
+  HomeTab: undefined;
+  Settings: undefined;
+  Profile: undefined;
+  Progress: undefined;
   MedicationDetails: { medicationId: string };
   AddMedication: undefined;
   EditMedication: { medicationId: string };
-  Progress: undefined;
-  Profile: undefined;
+  EmergencyContact: { modal?: boolean };
+  PersonalInformation: { modal?: boolean };
+  MedicalInformation: { modal?: boolean };
+  NotificationPreferences: { modal?: boolean };
+  PrivacyAndSecurity: { modal?: boolean };
+  SharedAccess: { modal?: boolean };
+  Achievements: { modal?: boolean };
 };
 
 export type UserRole = 'patient' | 'caregiver' | 'healthcare_provider' | 'family_member';

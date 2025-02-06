@@ -2,7 +2,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types';
+import { RootStackParamList } from '../types/';
 import CustomTabBar from '../components/CustomTabBar';
 import { theme } from '../theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +21,9 @@ import MedicalInformationScreen from '../screens/MedicalInformationScreen';
 import NotificationPreferencesScreen from '../screens/NotificationPreferencesScreen';
 import ProgressScreen from '../screens/ProgressScreen';
 import SharedAccessScreen from '../screens/SharedAccessScreen';
+import AchievementsScreen from '../screens/AchievementsScreen';
+import LoginScreen from '../screens/LoginScreen';
+import SignUpScreen from '../screens/SignUpScreen';
 
 const Tab = createBottomTabNavigator<RootStackParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -147,6 +150,16 @@ const AppNavigator = () => {
         }}
       >
         <Stack.Screen 
+          name="Login" 
+          component={LoginScreen} 
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen 
+          name="SignUp" 
+          component={SignUpScreen} 
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen 
           name="MainTabs" 
           component={TabNavigator} 
           options={{ headerShown: false }}
@@ -201,7 +214,15 @@ const AppNavigator = () => {
         <Stack.Screen
           name="SharedAccess"
           component={SharedAccessScreen}
-          options={{ presentation: 'modal' }}
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen
+          name="Achievements"
+          component={AchievementsScreen}
+          options={{
+            presentation: 'modal',
+            animation: 'slide_from_bottom',
+          }}
         />
       </Stack.Navigator>
     </NavigationContainer>

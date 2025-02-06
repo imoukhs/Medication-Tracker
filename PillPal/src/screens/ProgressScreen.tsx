@@ -6,14 +6,19 @@ import { useTheme } from '../context/ThemeContext';
 import AdherenceStats from '../components/AdherenceStats';
 import { HistoryEntry } from '../types';
 import HistoryService from '../services/HistoryService';
+import { Achievement } from '../types/achievements';
+import AchievementService from '../services/AchievementService';
+import Svg, { Circle } from 'react-native-svg';
 
 const ProgressScreen = () => {
   const { colors } = useTheme();
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
 
   useEffect(() => {
     loadProgressData();
+    loadAchievements();
   }, []);
 
   const loadProgressData = async () => {
@@ -25,10 +30,53 @@ const ProgressScreen = () => {
     }
   };
 
+  const loadAchievements = async () => {
+    const data = await AchievementService.getAchievements();
+    setAchievements(data);
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
     await loadProgressData();
     setRefreshing(false);
+  };
+
+  const CircularProgress = ({ 
+    progress, 
+    size = 80, 
+    strokeWidth = 10 
+  }: { 
+    progress: number; 
+    size?: number; 
+    strokeWidth?: number; 
+  }) => {
+    const radius = (size - strokeWidth) / 2;
+    const circumference = radius * 2 * Math.PI;
+    const progressOffset = circumference - (progress * circumference);
+
+    return (
+      <Svg width={size} height={size}>
+        <Circle
+          stroke={`${colors.primary}20`}
+          fill="none"
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          strokeWidth={strokeWidth}
+        />
+        <Circle
+          stroke={colors.primary}
+          fill="none"
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          strokeWidth={strokeWidth}
+          strokeDasharray={`${circumference} ${circumference}`}
+          strokeDashoffset={progressOffset}
+          strokeLinecap="round"
+        />
+      </Svg>
+    );
   };
 
   return (
@@ -79,6 +127,38 @@ const ProgressScreen = () => {
               </Text>
             </View>
           )}
+        </View>
+
+        <View style={styles.achievementsContainer}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Achievements</Text>
+          <View style={styles.achievementsGrid}>
+            {achievements.map((achievement) => (
+              <View
+                key={achievement.id}
+                style={[
+                  styles.achievementCard,
+                  { backgroundColor: colors.surface, borderColor: colors.border }
+                ]}
+              >
+                <View style={styles.progressCircle}>
+                  <CircularProgress progress={achievement.progress / achievement.target} />
+                  <View style={styles.achievementIcon}>
+                    <Ionicons
+                      name={achievement.icon as any}
+                      size={24}
+                      color={achievement.completed ? colors.primary : colors.textSecondary}
+                    />
+                  </View>
+                </View>
+                <Text style={[styles.achievementName, { color: colors.text }]}>
+                  {achievement.name}
+                </Text>
+                <Text style={[styles.achievementProgress, { color: colors.textSecondary }]}>
+                  {achievement.progress}/{achievement.target}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
       </View>
     </ScrollView>
@@ -143,6 +223,42 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginTop: 15,
+  },
+  achievementsContainer: {
+    padding: 20,
+  },
+  achievementsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  achievementCard: {
+    width: '48%',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  progressCircle: {
+    position: 'relative',
+    marginBottom: 12,
+  },
+  achievementIcon: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -12 }, { translateY: -12 }],
+  },
+  achievementName: {
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  achievementProgress: {
+    fontSize: 12,
+    textAlign: 'center',
   },
 });
 

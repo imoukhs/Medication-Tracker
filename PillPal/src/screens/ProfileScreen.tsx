@@ -1,17 +1,32 @@
 import React from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Image, Alert } from 'react-native';
 import { Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../context/ThemeContext';
-import { RootStackParamList } from '../types';
+import { RootStackParamList } from '../types/';
+import AuthService from '../services/AuthService';
 
 type ProfileScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const ProfileScreen = () => {
   const { colors } = useTheme();
   const navigation = useNavigation<ProfileScreenNavigationProp>();
+
+  const handleLogout = async () => {
+    try {
+      await AuthService.logout();
+      // Navigate to Login screen or reset navigation stack
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+    } catch (error) {
+      console.error('Error logging out:', error);
+      Alert.alert('Error', 'Failed to log out. Please try again.');
+    }
+  };
 
   const profileOptions = [
     {
@@ -43,6 +58,11 @@ const ProfileScreen = () => {
       icon: 'shield-outline' as const,
       title: 'Privacy & Security',
       onPress: () => navigation.navigate('PrivacyAndSecurity', { modal: true }),
+    },
+    {
+      icon: 'trophy-outline' as const,
+      title: 'Achievements',
+      onPress: () => navigation.navigate('Achievements', { modal: true }),
     },
   ];
 
@@ -88,7 +108,7 @@ const ProfileScreen = () => {
 
         <TouchableOpacity 
           style={[styles.logoutButton, { backgroundColor: colors.error }]}
-          onPress={() => {}}
+          onPress={handleLogout}
         >
           <Ionicons name="log-out-outline" size={24} color="#fff" />
           <Text style={styles.logoutText}>Log Out</Text>

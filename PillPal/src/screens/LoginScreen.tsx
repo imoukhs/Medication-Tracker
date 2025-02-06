@@ -18,6 +18,7 @@ import { RootStackParamList } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import AuthService from '../services/AuthService';
 import SecureStorageService from '../services/SecureStorageService';
+import BiometricService from '../services/BiometricService';
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
@@ -32,49 +33,45 @@ const LoginScreen = () => {
 
   useEffect(() => {
     checkBiometricSupport();
-    checkStoredCredentials();
   }, []);
 
   const checkBiometricSupport = async () => {
     try {
-      const compatible = await LocalAuthentication.hasHardwareAsync();
-      const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+      const isAvailable = await BiometricService.isBiometricAvailable();
+      setIsBiometricSupported(isAvailable);
       
-      if (compatible) {
+      if (isAvailable) {
+        const types = await BiometricService.getBiometricType();
         if (Platform.OS === 'ios' && types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
           setBiometricType('facial');
         } else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
           setBiometricType('fingerprint');
         }
-        setIsBiometricSupported(true);
+        
+        // Check if user has enabled biometric login
+        const isEnabled = await SecureStorageService.isBiometricEnabled();
+        if (isEnabled) {
+          handleBiometricAuth();
+        }
       }
     } catch (error) {
       console.error('Error checking biometric support:', error);
     }
   };
 
-  const checkStoredCredentials = async () => {
-    const isEnabled = await SecureStorageService.isBiometricEnabled();
-    if (isEnabled && isBiometricSupported) {
-      handleBiometricAuth();
-    }
-  };
-
   const handleBiometricAuth = async () => {
     try {
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: biometricType === 'facial' ? 'Login with Face ID' : 'Login with Fingerprint',
-        fallbackLabel: 'Use password',
-        disableDeviceFallback: false,
-      });
+      const authenticated = await BiometricService.authenticateWithBiometrics(
+        biometricType === 'facial' ? 'Login with Face ID' : 'Login with Fingerprint'
+      );
 
-      if (result.success) {
+      if (authenticated) {
         const credentials = await SecureStorageService.getBiometricCredentials();
         if (credentials) {
           setLoading(true);
           try {
             await AuthService.login(credentials.email, credentials.password);
-            navigation.replace('HomeTab');
+            navigation.replace('MainTabs');
           } catch (error) {
             Alert.alert('Error', 'Failed to login. Please try again.');
           } finally {
@@ -101,7 +98,7 @@ const LoginScreen = () => {
       if (isBiometricSupported) {
         await SecureStorageService.storeBiometricCredentials(email, password);
       }
-      navigation.replace('HomeTab');
+      navigation.replace('MainTabs');
     } catch (error) {
       Alert.alert('Error', 'Failed to login. Please try again.');
     } finally {
@@ -113,7 +110,7 @@ const LoginScreen = () => {
     setLoading(true);
     try {
       await AuthService.enableGuestMode();
-      navigation.replace('HomeTab');
+      navigation.replace('MainTabs');
     } catch (error) {
       Alert.alert('Error', 'Failed to enable guest mode. Please try again.');
     } finally {

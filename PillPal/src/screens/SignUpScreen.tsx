@@ -18,6 +18,7 @@ import { RootStackParamList } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import AuthService from '../services/AuthService';
 import SecureStorageService from '../services/SecureStorageService';
+import BiometricService from '../services/BiometricService';
 
 type SignUpScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'SignUp'>;
 
@@ -87,14 +88,17 @@ const SignUpScreen = () => {
     setLoading(true);
     try {
       const user = await AuthService.signup(email, password, name);
+      
       if (enableBiometric) {
-        // Store credentials for biometric login
-        await SecureStorageService.storeBiometricCredentials(email, password);
-        // Update user preferences
-        user.preferences.biometricEnabled = true;
-        // In a real app, you would save the updated preferences
+        const biometricEnabled = await BiometricService.enableBiometrics(email, password);
+        if (biometricEnabled) {
+          // Update user preferences
+          user.preferences.biometricEnabled = true;
+          // In a real app, you would save the updated preferences
+        }
       }
-      navigation.replace('HomeTab');
+      
+      navigation.replace('MainTabs');
     } catch (error) {
       Alert.alert('Error', 'Failed to create account. Please try again.');
     } finally {

@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { HistoryEntry } from '../types';
 
-const HISTORY_STORAGE_KEY = '@medication_history';
+const HISTORY_STORAGE_KEY = 'medication_history';
 
 class HistoryService {
   async getHistory(): Promise<HistoryEntry[]> {

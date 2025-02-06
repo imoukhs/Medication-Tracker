@@ -2,9 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Medication, UserPreferences, EmergencyContact } from '../types';
 
 const STORAGE_KEYS = {
-  PREFERENCES: '@preferences',
-  MEDICATIONS: '@medications',
-  EMERGENCY_CONTACTS: '@emergency_contacts',
+  PREFERENCES: 'preferences',
+  MEDICATIONS: 'medications',
+  EMERGENCY_CONTACTS: 'emergency_contacts',
 };
 
 class StorageService {
