@@ -30,6 +30,11 @@ const ProfileScreen = () => {
       onPress: () => navigation.navigate('EmergencyContact', { modal: true }),
     },
     {
+      icon: 'share-outline' as const,
+      title: 'Shared Access',
+      onPress: () => navigation.navigate('SharedAccess', { modal: true }),
+    },
+    {
       icon: 'notifications-outline' as const,
       title: 'Notification Preferences',
       onPress: () => navigation.navigate('NotificationPreferences', { modal: true }),

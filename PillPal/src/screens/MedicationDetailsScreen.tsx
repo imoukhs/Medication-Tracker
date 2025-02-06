@@ -1,14 +1,22 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  Platform,
+} from 'react-native';
 import { Text } from 'react-native';
-import { RouteProp, useNavigation } from '@react-navigation/native';
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList, Medication, HistoryEntry } from '../types';
-import StorageService from '../services/StorageService';
+import { useTheme } from '../context/ThemeContext';
+import CircularProgress from '../components/CircularProgress';
+import MedicationService from '../services/MedicationService';
 import HistoryService from '../services/HistoryService';
 import MedicationStatsService from '../services/MedicationStatsService';
-import { useTheme } from '../context/ThemeContext';
 
 type MedicationDetailsScreenProps = {
   route: RouteProp<RootStackParamList, 'MedicationDetails'>;
@@ -23,45 +31,34 @@ const MedicationDetailsScreen: React.FC<MedicationDetailsScreenProps> = ({ route
   const navigation = useNavigation<MedicationDetailsNavigationProp>();
   const { colors } = useTheme();
   const [medication, setMedication] = useState<Medication | null>(null);
+  const [adherenceRate, setAdherenceRate] = useState(0);
+  const [currentStreak, setCurrentStreak] = useState(0);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [adherenceRate, setAdherenceRate] = useState<number>(0);
-  const [streak, setStreak] = useState<number>(0);
-  const [missedDoses, setMissedDoses] = useState<number>(0);
-  const [timeStats, setTimeStats] = useState<{ morning: number; afternoon: number; evening: number; night: number }>({
-    morning: 0,
-    afternoon: 0,
-    evening: 0,
-    night: 0,
-  });
 
   useEffect(() => {
     loadMedicationDetails();
-  }, []);
+  }, [route.params?.medicationId]);
 
   const loadMedicationDetails = async () => {
+    if (!route.params?.medicationId) return;
+
     try {
-      const medications = await StorageService.getMedications();
-      const found = medications.find(med => med.id === route.params?.medicationId);
-      if (found) {
-        setMedication(found);
-        const medicationHistory = await HistoryService.getMedicationHistory(found.id);
-        setHistory(medicationHistory);
-        
-        // Load statistics
-        const rate = await MedicationStatsService.getAdherenceRate(found.id);
-        const currentStreak = await MedicationStatsService.getCurrentStreak(found.id);
-        const missed = await MedicationStatsService.getMissedDoses(found.id);
-        const todStats = await MedicationStatsService.getTimeOfDayStats(found.id);
-        
+      const med = await MedicationService.getMedicationById(route.params.medicationId);
+      if (med) {
+        setMedication(med);
+        const [rate, streak, medicationHistory] = await Promise.all([
+          MedicationStatsService.getAdherenceRate(med.id),
+          MedicationStatsService.getCurrentStreak(med.id),
+          HistoryService.getMedicationHistory(med.id),
+        ]);
         setAdherenceRate(rate);
-        setStreak(currentStreak);
-        setMissedDoses(missed);
-        setTimeStats(todStats);
+        setCurrentStreak(streak);
+        setHistory(medicationHistory);
       }
     } catch (error) {
+      console.error('Error loading medication details:', error);
       Alert.alert('Error', 'Failed to load medication details');
-      console.error('Error loading medication:', error);
     } finally {
       setLoading(false);
     }
@@ -71,69 +68,61 @@ const MedicationDetailsScreen: React.FC<MedicationDetailsScreenProps> = ({ route
     if (!medication) return;
 
     try {
-      const updatedMedication = {
-        ...medication,
-        supply: medication.supply - 1,
-      };
-
-      await StorageService.updateMedication(medication.id, updatedMedication);
+      // Record the dose
       await HistoryService.addHistoryEntry({
         medicationId: medication.id,
         timestamp: Date.now(),
         taken: true,
       });
 
-      // Check if supply is low
-      if (updatedMedication.supply <= updatedMedication.lowSupplyThreshold) {
-        Alert.alert(
-          'Low Supply',
-          `Your ${medication.name} supply is running low. Please refill soon.`
-        );
-      }
+      // Update supply
+      const newSupply = medication.supply - 1;
+      await MedicationService.updateSupply(medication.id, newSupply);
 
-      setMedication(updatedMedication);
-      loadMedicationDetails(); // Refresh history
+      // Refresh data
+      loadMedicationDetails();
+
+      Alert.alert('Success', 'Dose recorded successfully');
     } catch (error) {
-      Alert.alert('Error', 'Failed to record dose');
       console.error('Error recording dose:', error);
+      Alert.alert('Error', 'Failed to record dose');
     }
   };
 
-  const renderHistoryItem = (entry: HistoryEntry) => (
-    <View
-      key={entry.id}
-      style={[styles.historyItem, { backgroundColor: colors.surface, borderColor: colors.border }]}
-    >
-      <View style={styles.historyIcon}>
-        <Ionicons
-          name={entry.taken ? 'checkmark-circle' : 'close-circle'}
-          size={24}
-          color={entry.taken ? colors.success : colors.error}
-        />
-      </View>
-      <View style={styles.historyContent}>
-        <Text style={[styles.historyText, { color: colors.text }]}>
-          {entry.taken ? 'Taken' : 'Missed'}
-        </Text>
-        <Text style={[styles.historyTime, { color: colors.textSecondary }]}>
-          {new Date(entry.timestamp).toLocaleString()}
-        </Text>
-      </View>
-    </View>
-  );
+  const handleEdit = () => {
+    if (!medication) return;
+    navigation.navigate('EditMedication', { medicationId: medication.id });
+  };
 
-  if (loading) {
-    return (
-      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
-        <Text style={{ color: colors.text }}>Loading...</Text>
-      </View>
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Medication',
+      'Are you sure you want to delete this medication?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (medication) {
+                await MedicationService.deleteMedication(medication.id);
+                navigation.goBack();
+              }
+            } catch (error) {
+              console.error('Error deleting medication:', error);
+              Alert.alert('Error', 'Failed to delete medication');
+            }
+          },
+        },
+      ]
     );
-  }
+  };
 
   if (!medication) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
-        <Text style={{ color: colors.text }}>Medication not found</Text>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Text style={[styles.errorText, { color: colors.text }]}>Medication not found</Text>
       </View>
     );
   }
@@ -141,107 +130,98 @@ const MedicationDetailsScreen: React.FC<MedicationDetailsScreenProps> = ({ route
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <View>
-          <Text style={styles.title}>{medication.name}</Text>
-          <Text style={styles.subtitle}>{medication.dosage}</Text>
+        <View style={styles.headerContent}>
+          <View style={styles.titleContainer}>
+            <Text style={styles.medicationName}>{medication.name}</Text>
+            <Text style={styles.dosage}>{medication.dosage}</Text>
+          </View>
+          <View style={styles.headerActions}>
+            <TouchableOpacity style={styles.headerButton} onPress={handleEdit}>
+              <Ionicons name="pencil" size={24} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerButton} onPress={handleDelete}>
+              <Ionicons name="trash" size={24} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
       <View style={styles.content}>
-        <View style={[styles.statsContainer, { backgroundColor: colors.surface }]}>
-          <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: colors.primary }]}>
-              {adherenceRate.toFixed(1)}%
-            </Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Adherence</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: colors.primary }]}>{streak}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Day Streak</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: colors.error }]}>{missedDoses}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Missed</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <CircularProgress
+                progress={adherenceRate}
+                size={100}
+                strokeWidth={8}
+                progressColor={colors.primary}
+                backgroundColor={`${colors.primary}20`}
+                textColor={colors.text}
+              />
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Adherence</Text>
+            </View>
+            <View style={styles.statItem}>
+              <View style={styles.streakContainer}>
+                <Ionicons name="flame" size={24} color={colors.primary} />
+                <Text style={[styles.streakText, { color: colors.text }]}>{currentStreak}</Text>
+              </View>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Day Streak</Text>
+            </View>
+            <View style={styles.statItem}>
+              <View style={styles.supplyContainer}>
+                <Text 
+                  style={[
+                    styles.supplyText, 
+                    { color: medication.supply <= medication.lowSupplyThreshold ? colors.error : colors.text }
+                  ]}
+                >
+                  {medication.supply}
+                </Text>
+              </View>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Remaining</Text>
+            </View>
           </View>
         </View>
 
-        <View style={[styles.section, { borderBottomColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Instructions</Text>
-          <Text style={[styles.text, { color: colors.text }]}>
-            {medication.instructions || 'No specific instructions'}
-          </Text>
-        </View>
-
-        <View style={[styles.section, { borderBottomColor: colors.border }]}>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Schedule</Text>
-          <Text style={[styles.text, { color: colors.text }]}>
-            Frequency: {medication.frequency}
+          <Text style={[styles.scheduleText, { color: colors.text }]}>
+            {medication.frequency} at {new Date(medication.scheduledTime).toLocaleTimeString()}
           </Text>
-          <Text style={[styles.text, { color: colors.text }]}>
-            Next dose: {new Date(medication.scheduledTime).toLocaleTimeString()}
-          </Text>
-        </View>
-
-        <View style={[styles.section, { borderBottomColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Supply</Text>
-          <Text style={[styles.text, { color: colors.text }]}>
-            Remaining: {medication.supply} doses
-          </Text>
-          <Text style={[styles.text, { color: colors.text }]}>
-            Low supply alert at: {medication.lowSupplyThreshold} doses
+          <Text style={[styles.instructions, { color: colors.textSecondary }]}>
+            {medication.instructions}
           </Text>
         </View>
 
-        <View style={[styles.section, { borderBottomColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Time of Day Analysis</Text>
-          <View style={styles.timeStats}>
-            <View style={styles.timeStatItem}>
-              <Ionicons name="sunny" size={24} color={colors.primary} />
-              <Text style={[styles.timeStatValue, { color: colors.text }]}>{timeStats.morning}</Text>
-              <Text style={[styles.timeStatLabel, { color: colors.textSecondary }]}>Morning</Text>
-            </View>
-            <View style={styles.timeStatItem}>
-              <Ionicons name="partly-sunny" size={24} color={colors.primary} />
-              <Text style={[styles.timeStatValue, { color: colors.text }]}>{timeStats.afternoon}</Text>
-              <Text style={[styles.timeStatLabel, { color: colors.textSecondary }]}>Afternoon</Text>
-            </View>
-            <View style={styles.timeStatItem}>
-              <Ionicons name="moon" size={24} color={colors.primary} />
-              <Text style={[styles.timeStatValue, { color: colors.text }]}>{timeStats.evening}</Text>
-              <Text style={[styles.timeStatLabel, { color: colors.textSecondary }]}>Evening</Text>
-            </View>
-            <View style={styles.timeStatItem}>
-              <Ionicons name="moon" size={24} color={colors.primary} />
-              <Text style={[styles.timeStatValue, { color: colors.text }]}>{timeStats.night}</Text>
-              <Text style={[styles.timeStatLabel, { color: colors.textSecondary }]}>Night</Text>
-            </View>
-          </View>
-        </View>
+        <TouchableOpacity
+          style={[styles.takeButton, { backgroundColor: colors.primary }]}
+          onPress={handleTakeDose}
+        >
+          <Ionicons name="checkmark-circle" size={24} color="#fff" />
+          <Text style={styles.takeButtonText}>Take Dose</Text>
+        </TouchableOpacity>
 
-        <View style={styles.section}>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>History</Text>
-          {history.length > 0 ? (
-            history.map(renderHistoryItem)
-          ) : (
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              No history recorded yet
-            </Text>
-          )}
+          {history.slice(0, 5).map((entry, index) => (
+            <View key={entry.id} style={styles.historyItem}>
+              <Ionicons
+                name={entry.taken ? 'checkmark-circle' : 'close-circle'}
+                size={24}
+                color={entry.taken ? colors.success : colors.error}
+              />
+              <View style={styles.historyContent}>
+                <Text style={[styles.historyText, { color: colors.text }]}>
+                  {entry.taken ? 'Taken' : 'Missed'}
+                </Text>
+                <Text style={[styles.historyTime, { color: colors.textSecondary }]}>
+                  {new Date(entry.timestamp).toLocaleString()}
+                </Text>
+              </View>
+            </View>
+          ))}
         </View>
       </View>
-
-      <TouchableOpacity
-        style={[styles.takeButton, { backgroundColor: colors.primary }]}
-        onPress={handleTakeDose}
-      >
-        <Ionicons name="checkmark-circle" size={24} color="#fff" />
-        <Text style={styles.takeButtonText}>Take Dose</Text>
-      </TouchableOpacity>
     </ScrollView>
   );
 };
@@ -250,130 +230,118 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   header: {
     padding: 20,
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'ios' ? 60 : 20,
+  },
+  headerContent: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  backButton: {
-    marginRight: 15,
+  titleContainer: {
+    flex: 1,
   },
-  title: {
+  medicationName: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 5,
+    marginBottom: 4,
   },
-  subtitle: {
-    fontSize: 18,
+  dosage: {
+    fontSize: 16,
     color: '#fff',
-    opacity: 0.8,
+    opacity: 0.9,
+  },
+  headerActions: {
+    flexDirection: 'row',
+  },
+  headerButton: {
+    marginLeft: 15,
   },
   content: {
-    padding: 20,
+    padding: 16,
   },
-  section: {
-    marginBottom: 25,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
+  card: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statLabel: {
+    marginTop: 8,
+    fontSize: 14,
+  },
+  streakContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  streakText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  supplyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  supplyText: {
+    fontSize: 24,
+    fontWeight: 'bold',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    marginBottom: 10,
+    marginBottom: 12,
   },
-  text: {
+  scheduleText: {
     fontSize: 16,
-    lineHeight: 24,
     marginBottom: 8,
   },
-  historyItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 10,
-    borderWidth: 1,
-  },
-  historyIcon: {
-    marginRight: 15,
-  },
-  historyContent: {
-    flex: 1,
-  },
-  historyText: {
-    fontSize: 16,
-    marginBottom: 4,
-  },
-  historyTime: {
+  instructions: {
     fontSize: 14,
-  },
-  emptyText: {
-    textAlign: 'center',
-    fontSize: 16,
-    marginTop: 10,
   },
   takeButton: {
     flexDirection: 'row',
-    margin: 20,
-    padding: 15,
-    borderRadius: 8,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
   },
   takeButtonText: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: 'bold',
-    marginLeft: 10,
+    fontWeight: '600',
+    marginLeft: 8,
   },
-  statsContainer: {
+  historyItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 20,
-  },
-  statItem: {
-    flex: 1,
     alignItems: 'center',
+    paddingVertical: 8,
   },
-  statValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 4,
+  historyContent: {
+    marginLeft: 12,
   },
-  statLabel: {
+  historyText: {
+    fontSize: 16,
+    marginBottom: 2,
+  },
+  historyTime: {
     fontSize: 14,
   },
-  statDivider: {
-    width: 1,
-    backgroundColor: 'rgba(0,0,0,0.1)',
-    marginHorizontal: 15,
-  },
-  timeStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-  },
-  timeStatItem: {
-    alignItems: 'center',
-    width: '25%',
-    marginBottom: 15,
-  },
-  timeStatValue: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginVertical: 4,
-  },
-  timeStatLabel: {
-    fontSize: 12,
+  errorText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 20,
   },
 });
 

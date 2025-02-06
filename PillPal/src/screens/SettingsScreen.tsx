@@ -11,12 +11,12 @@ type SettingsScreenNavigationProp = NativeStackNavigationProp<RootStackParamList
 
 const SettingsScreen = () => {
   const navigation = useNavigation<SettingsScreenNavigationProp>();
-  const { colors, themeMode, toggleTheme, isSystemTheme, setIsSystemTheme } = useTheme();
+  const { colors, themeMode, toggleTheme } = useTheme();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
 
   const handleEmergencyContactPress = () => {
-    navigation.navigate('EmergencyContact');
+    navigation.navigate('EmergencyContact', { modal: true });
   };
 
   return (
@@ -30,33 +30,17 @@ const SettingsScreen = () => {
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Appearance</Text>
           <View style={[styles.settingItem, { borderBottomColor: colors.border }]}>
             <View style={styles.settingContent}>
-              <Text style={[styles.settingLabel, { color: colors.text }]}>Use System Theme</Text>
+              <Text style={[styles.settingLabel, { color: colors.text }]}>Dark Mode</Text>
               <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
-                Automatically match device settings
+                {themeMode === 'dark' ? 'On' : 'Off'}
               </Text>
             </View>
             <Switch
-              value={isSystemTheme}
-              onValueChange={setIsSystemTheme}
+              value={themeMode === 'dark'}
+              onValueChange={toggleTheme}
               trackColor={{ false: '#767577', true: colors.primary }}
             />
           </View>
-
-          {!isSystemTheme && (
-            <View style={[styles.settingItem, { borderBottomColor: colors.border }]}>
-              <View style={styles.settingContent}>
-                <Text style={[styles.settingLabel, { color: colors.text }]}>Dark Mode</Text>
-                <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
-                  {themeMode === 'dark' ? 'On' : 'Off'}
-                </Text>
-              </View>
-              <Switch
-                value={themeMode === 'dark'}
-                onValueChange={toggleTheme}
-                trackColor={{ false: '#767577', true: colors.primary }}
-              />
-            </View>
-          )}
         </View>
 
         <View style={styles.section}>

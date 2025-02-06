@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { Text } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -8,35 +8,36 @@ import CircularProgress from '../components/CircularProgress';
 import MedicationCard from '../components/MedicationCard';
 import { RootStackParamList, Medication } from '../types';
 import { useTheme } from '../context/ThemeContext';
+import MedicationService from '../services/MedicationService';
+import AdherenceService from '../services/AdherenceService';
 
 type HomeScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
 
 const HomeScreen = () => {
   const navigation = useNavigation<HomeScreenNavigationProp>();
   const { colors } = useTheme();
-  // Temporary mock data - will be replaced with actual data from storage
-  const [medications] = useState<Medication[]>([
-    {
-      id: '1',
-      name: 'Aspirin',
-      dosage: '100mg',
-      frequency: 'Daily',
-      instructions: 'Take with food',
-      scheduledTime: new Date(),
-      supply: 30,
-      lowSupplyThreshold: 5,
-    },
-    {
-      id: '2',
-      name: 'Vitamin D',
-      dosage: '1000 IU',
-      frequency: 'Daily',
-      instructions: 'Take in the morning',
-      scheduledTime: new Date(),
-      supply: 60,
-      lowSupplyThreshold: 10,
-    },
-  ]);
+  const [medications, setMedications] = useState<Medication[]>([]);
+  const [adherenceRate, setAdherenceRate] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const meds = await MedicationService.getMedications();
+      setMedications(meds);
+      
+      const report = await AdherenceService.generateAdherenceReport(7); // Weekly report
+      setAdherenceRate(report.adherenceRate);
+    } catch (error) {
+      console.error('Error loading home data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleAddMedication = () => {
     navigation.navigate('AddMedication');
@@ -44,6 +45,10 @@ const HomeScreen = () => {
 
   const handleMedicationPress = (medicationId: string) => {
     navigation.navigate('MedicationDetails', { medicationId });
+  };
+
+  const handleRefresh = () => {
+    loadData();
   };
 
   return (
@@ -60,22 +65,32 @@ const HomeScreen = () => {
           </View>
           <View style={styles.progressContainer}>
             <CircularProgress 
-              progress={75} 
-              size={80} 
+              progress={adherenceRate} 
+              size={100} 
               strokeWidth={8}
               progressColor={colors.background}
               backgroundColor={`${colors.background}40`}
               textColor={colors.background}
             />
-            <Text style={styles.progressLabel}>Today's Progress</Text>
+            <Text style={styles.progressLabel}>Weekly Progress</Text>
           </View>
         </View>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isLoading}
+            onRefresh={handleRefresh}
+            tintColor={colors.primary}
+          />
+        }
+      >
         <View style={styles.content}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Upcoming Medications</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Medications</Text>
             <TouchableOpacity onPress={handleAddMedication}>
               <Ionicons name="add-circle" size={24} color={colors.primary} />
             </TouchableOpacity>

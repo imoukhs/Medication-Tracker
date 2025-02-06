@@ -80,7 +80,7 @@ class NotificationService {
     }
   }
 
-  private async scheduleLowSupplyAlert(medication: Medication): Promise<string> {
+  async scheduleLowSupplyAlert(medication: Medication): Promise<string> {
     const trigger = {
       hour: 9, // Schedule low supply alerts for 9 AM
       minute: 0,
