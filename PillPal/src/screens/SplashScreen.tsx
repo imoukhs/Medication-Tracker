@@ -1,8 +1,9 @@
 import React, { useEffect } from 'react';
 import { View, StyleSheet, Animated, Image } from 'react-native';
-import { theme } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 
 const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
+  const { colors } = useTheme();
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const scaleAnim = React.useRef(new Animated.Value(0.3)).current;
 
@@ -11,25 +12,26 @@ const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: 1000,
+          duration: 800,
           useNativeDriver: true,
         }),
         Animated.spring(scaleAnim, {
           toValue: 1,
-          tension: 20,
+          tension: 10,
+          friction: 2,
           useNativeDriver: true,
         }),
       ]),
-      Animated.delay(1500),
+      Animated.delay(1000),
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 0,
-          duration: 500,
+          duration: 400,
           useNativeDriver: true,
         }),
         Animated.timing(scaleAnim, {
           toValue: 0.3,
-          duration: 500,
+          duration: 400,
           useNativeDriver: true,
         }),
       ]),
@@ -39,7 +41,7 @@ const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
   }, [fadeAnim, scaleAnim, onFinish]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.primary }]}>
       <Animated.View
         style={[
           styles.content,
@@ -62,7 +64,6 @@ const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.light.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },

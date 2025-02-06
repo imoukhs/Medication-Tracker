@@ -1,68 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Medication, UserPreferences, HistoryEntry } from '../types';
+import { Medication, UserPreferences, EmergencyContact } from '../types';
+
+const STORAGE_KEYS = {
+  PREFERENCES: '@preferences',
+  MEDICATIONS: '@medications',
+  EMERGENCY_CONTACTS: '@emergency_contacts',
+};
 
 class StorageService {
-  // Medication Management
-  async saveMedication(medication: Medication): Promise<void> {
+  static async getPreferences(): Promise<UserPreferences | null> {
     try {
-      const existingData = await AsyncStorage.getItem('medications');
-      const medications = existingData ? JSON.parse(existingData) : [];
-      medications.push(medication);
-      await AsyncStorage.setItem('medications', JSON.stringify(medications));
-    } catch (error) {
-      console.error('Error saving medication:', error);
-      throw error;
-    }
-  }
-
-  async getMedications(): Promise<Medication[]> {
-    try {
-      const data = await AsyncStorage.getItem('medications');
-      return data ? JSON.parse(data) : [];
-    } catch (error) {
-      console.error('Error getting medications:', error);
-      return [];
-    }
-  }
-
-  async updateMedication(id: string, updates: Partial<Medication>): Promise<void> {
-    try {
-      const medications = await this.getMedications();
-      const index = medications.findIndex(med => med.id === id);
-      if (index !== -1) {
-        medications[index] = { ...medications[index], ...updates };
-        await AsyncStorage.setItem('medications', JSON.stringify(medications));
-      }
-    } catch (error) {
-      console.error('Error updating medication:', error);
-      throw error;
-    }
-  }
-
-  async deleteMedication(id: string): Promise<void> {
-    try {
-      const medications = await this.getMedications();
-      const filtered = medications.filter(med => med.id !== id);
-      await AsyncStorage.setItem('medications', JSON.stringify(filtered));
-    } catch (error) {
-      console.error('Error deleting medication:', error);
-      throw error;
-    }
-  }
-
-  // User Preferences
-  async savePreferences(preferences: UserPreferences): Promise<void> {
-    try {
-      await AsyncStorage.setItem('user_preferences', JSON.stringify(preferences));
-    } catch (error) {
-      console.error('Error saving preferences:', error);
-      throw error;
-    }
-  }
-
-  async getPreferences(): Promise<UserPreferences | null> {
-    try {
-      const data = await AsyncStorage.getItem('user_preferences');
+      const data = await AsyncStorage.getItem(STORAGE_KEYS.PREFERENCES);
       return data ? JSON.parse(data) : null;
     } catch (error) {
       console.error('Error getting preferences:', error);
@@ -70,28 +18,79 @@ class StorageService {
     }
   }
 
-  // History Management
-  async saveHistoryEntry(entry: HistoryEntry): Promise<void> {
+  static async savePreferences(preferences: UserPreferences): Promise<void> {
     try {
-      const existingData = await AsyncStorage.getItem('history');
-      const history = existingData ? JSON.parse(existingData) : [];
-      history.push(entry);
-      await AsyncStorage.setItem('history', JSON.stringify(history));
+      await AsyncStorage.setItem(STORAGE_KEYS.PREFERENCES, JSON.stringify(preferences));
     } catch (error) {
-      console.error('Error saving history entry:', error);
+      console.error('Error saving preferences:', error);
       throw error;
     }
   }
 
-  async getHistory(): Promise<HistoryEntry[]> {
+  static async getMedications(): Promise<Medication[]> {
     try {
-      const data = await AsyncStorage.getItem('history');
+      const data = await AsyncStorage.getItem(STORAGE_KEYS.MEDICATIONS);
       return data ? JSON.parse(data) : [];
     } catch (error) {
-      console.error('Error getting history:', error);
+      console.error('Error getting medications:', error);
       return [];
+    }
+  }
+
+  static async saveMedication(medication: Medication): Promise<void> {
+    try {
+      const medications = await this.getMedications();
+      medications.push(medication);
+      await AsyncStorage.setItem(STORAGE_KEYS.MEDICATIONS, JSON.stringify(medications));
+    } catch (error) {
+      console.error('Error saving medication:', error);
+      throw error;
+    }
+  }
+
+  static async updateMedication(id: string, updates: Partial<Medication>): Promise<void> {
+    try {
+      const medications = await this.getMedications();
+      const index = medications.findIndex(med => med.id === id);
+      if (index !== -1) {
+        medications[index] = { ...medications[index], ...updates };
+        await AsyncStorage.setItem(STORAGE_KEYS.MEDICATIONS, JSON.stringify(medications));
+      }
+    } catch (error) {
+      console.error('Error updating medication:', error);
+      throw error;
+    }
+  }
+
+  static async deleteMedication(id: string): Promise<void> {
+    try {
+      const medications = await this.getMedications();
+      const filtered = medications.filter(med => med.id !== id);
+      await AsyncStorage.setItem(STORAGE_KEYS.MEDICATIONS, JSON.stringify(filtered));
+    } catch (error) {
+      console.error('Error deleting medication:', error);
+      throw error;
+    }
+  }
+
+  static async getEmergencyContacts(): Promise<EmergencyContact[]> {
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEYS.EMERGENCY_CONTACTS);
+      return data ? JSON.parse(data) : [];
+    } catch (error) {
+      console.error('Error getting emergency contacts:', error);
+      return [];
+    }
+  }
+
+  static async saveEmergencyContacts(contacts: EmergencyContact[]): Promise<void> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.EMERGENCY_CONTACTS, JSON.stringify(contacts));
+    } catch (error) {
+      console.error('Error saving emergency contacts:', error);
+      throw error;
     }
   }
 }
 
-export default new StorageService(); 
+export default StorageService; 

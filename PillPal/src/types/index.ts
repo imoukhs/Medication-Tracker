@@ -8,7 +8,7 @@ export interface User {
 export interface UserPreferences {
   theme: 'light' | 'dark';
   notifications: boolean;
-  emergencyContact: EmergencyContact;
+  emergencyContact: EmergencyContact | null;
   biometricEnabled: boolean;
 }
 

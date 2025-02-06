@@ -1,9 +1,8 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import { Text } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../theme';
 import { Medication } from '../types';
+import { useTheme } from '../context/ThemeContext';
 
 interface MedicationCardProps {
   medication: Medication;
@@ -11,72 +10,80 @@ interface MedicationCardProps {
 }
 
 const MedicationCard: React.FC<MedicationCardProps> = ({ medication, onPress }) => {
+  const { colors } = useTheme();
+  const isLowSupply = medication.supply <= medication.lowSupplyThreshold;
+
   return (
-    <TouchableOpacity style={styles.container} onPress={onPress}>
-      <View style={styles.iconContainer}>
-        <Ionicons name="medical" size={24} color={theme.light.primary} />
-      </View>
-      <View style={styles.content}>
-        <Text style={styles.name}>{medication.name}</Text>
-        <Text style={styles.dosage}>{medication.dosage}</Text>
-        <Text style={styles.time}>
-          Next dose: {new Date(medication.scheduledTime).toLocaleTimeString()}
-        </Text>
-      </View>
-      <View style={styles.arrow}>
-        <Ionicons name="chevron-forward" size={24} color={theme.light.text} />
+    <TouchableOpacity onPress={onPress}>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={styles.leftContent}>
+          <Text style={[styles.name, { color: colors.text }]}>{medication.name}</Text>
+          <Text style={[styles.dosage, { color: colors.textSecondary }]}>
+            {medication.dosage} - {medication.frequency}
+          </Text>
+          <Text style={[styles.time, { color: colors.textSecondary }]}>
+            Next: {new Date(medication.scheduledTime).toLocaleTimeString()}
+          </Text>
+        </View>
+        <View style={styles.rightContent}>
+          <Text style={[styles.supply, { color: isLowSupply ? colors.error : colors.text }]}>
+            {medication.supply}
+          </Text>
+          <Text style={[styles.supplyLabel, { color: colors.textSecondary }]}>remaining</Text>
+          {isLowSupply && (
+            <Ionicons name="warning" size={20} color={colors.error} style={styles.warningIcon} />
+          )}
+        </View>
       </View>
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  card: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderRadius: 12,
     padding: 15,
     marginBottom: 10,
-    alignItems: 'center',
+    borderRadius: 8,
+    borderWidth: 1,
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 1,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    shadowOpacity: 0.2,
+    shadowRadius: 1.41,
   },
-  iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: `${theme.light.primary}20`,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 15,
-  },
-  content: {
+  leftContent: {
     flex: 1,
   },
+  rightContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingLeft: 15,
+  },
   name: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: theme.light.text,
+    fontSize: 18,
+    fontWeight: '600',
     marginBottom: 4,
   },
   dosage: {
     fontSize: 14,
-    color: theme.light.text,
-    opacity: 0.8,
     marginBottom: 4,
   },
   time: {
-    fontSize: 12,
-    color: theme.light.primary,
+    fontSize: 14,
   },
-  arrow: {
-    marginLeft: 10,
+  supply: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  supplyLabel: {
+    fontSize: 12,
+  },
+  warningIcon: {
+    marginTop: 5,
   },
 });
 
