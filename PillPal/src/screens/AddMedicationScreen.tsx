@@ -2,27 +2,24 @@ import React, { useState } from 'react';
 import {
   View,
   StyleSheet,
+  ScrollView,
   TextInput,
   TouchableOpacity,
-  ScrollView,
-  Alert,
   Platform,
   KeyboardAvoidingView,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Text } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../context/ThemeContext';
 import { RootStackParamList } from '../types';
+import { useTheme } from '../context/ThemeContext';
 import MedicationService from '../services/MedicationService';
-import NotificationService from '../services/NotificationService';
-import FrequencyPicker from '../components/FrequencyPicker';
 
 type AddMedicationScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'AddMedication'>;
-
-const FREQUENCIES = ['Daily', 'Twice Daily', 'Weekly', 'Monthly', 'As Needed'];
 
 const AddMedicationScreen = () => {
   const navigation = useNavigation<AddMedicationScreenNavigationProp>();
@@ -35,11 +32,10 @@ const AddMedicationScreen = () => {
   const [lowSupplyThreshold, setLowSupplyThreshold] = useState('');
   const [scheduledTime, setScheduledTime] = useState(new Date());
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [showFrequencyModal, setShowFrequencyModal] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleTimeChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
-    setShowTimePicker(false);
+    setShowTimePicker(Platform.OS === 'ios');
     if (selectedDate) {
       setScheduledTime(selectedDate);
     }
@@ -55,19 +51,15 @@ const AddMedicationScreen = () => {
       return false;
     }
     if (!frequency.trim()) {
-      Alert.alert('Error', 'Please select frequency');
+      Alert.alert('Error', 'Please enter frequency');
       return false;
     }
-    if (!supply.trim() || isNaN(Number(supply))) {
-      Alert.alert('Error', 'Please enter a valid supply count');
+    if (!supply || isNaN(Number(supply))) {
+      Alert.alert('Error', 'Please enter a valid supply amount');
       return false;
     }
-    if (!lowSupplyThreshold.trim() || isNaN(Number(lowSupplyThreshold))) {
+    if (!lowSupplyThreshold || isNaN(Number(lowSupplyThreshold))) {
       Alert.alert('Error', 'Please enter a valid low supply threshold');
-      return false;
-    }
-    if (Number(lowSupplyThreshold) >= Number(supply)) {
-      Alert.alert('Error', 'Low supply threshold must be less than total supply');
       return false;
     }
     return true;
@@ -76,157 +68,92 @@ const AddMedicationScreen = () => {
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
-    setIsSubmitting(true);
+    setIsLoading(true);
     try {
-      const newMedication = {
-        name: name.trim(),
-        dosage: dosage.trim(),
-        frequency: frequency.trim(),
-        instructions: instructions.trim(),
+      await MedicationService.addMedication({
+        name,
+        dosage,
+        frequency,
+        instructions,
         scheduledTime,
-        supply: parseInt(supply),
-        lowSupplyThreshold: parseInt(lowSupplyThreshold),
-      };
+        supply: Number(supply),
+        lowSupplyThreshold: Number(lowSupplyThreshold),
+      });
 
-      await MedicationService.addMedication(newMedication);
-      navigation.goBack();
+      Alert.alert('Success', 'Medication added successfully', [
+        { text: 'OK', onPress: () => navigation.goBack() }
+      ]);
     } catch (error) {
-      console.error('Error saving medication:', error);
-      Alert.alert('Error', 'Failed to save medication. Please try again.');
+      Alert.alert('Error', 'Failed to add medication');
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
   };
+
+  const renderInput = (
+    label: string,
+    value: string,
+    onChangeText: (text: string) => void,
+    placeholder: string,
+    keyboardType: 'default' | 'numeric' = 'default',
+    multiline: boolean = false
+  ) => (
+    <View style={styles.inputContainer}>
+      <Text style={[styles.label, { color: colors.text }]}>{label}</Text>
+      <TextInput
+        style={[
+          styles.input,
+          multiline && styles.multilineInput,
+          { 
+            color: colors.text,
+            backgroundColor: colors.surface,
+            borderColor: colors.border,
+          }
+        ]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={colors.textSecondary}
+        keyboardType={keyboardType}
+        multiline={multiline}
+        numberOfLines={multiline ? 3 : 1}
+      />
+    </View>
+  );
 
   return (
     <KeyboardAvoidingView 
       style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
-        <TouchableOpacity 
-          style={styles.backButton} 
+        <TouchableOpacity
+          style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="chevron-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.title}>Add New Medication</Text>
+        <Text style={styles.headerTitle}>Add Medication</Text>
       </View>
 
-      <ScrollView style={styles.form}>
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: colors.text }]}>Medication Name *</Text>
-          <TextInput
-            style={[styles.input, { 
-              backgroundColor: colors.surface,
-              color: colors.text,
-              borderColor: colors.border
-            }]}
-            value={name}
-            onChangeText={setName}
-            placeholder="Enter medication name"
-            placeholderTextColor={colors.textSecondary}
-          />
-        </View>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {renderInput('Medication Name', name, setName, 'Enter medication name')}
+        {renderInput('Dosage', dosage, setDosage, 'Enter dosage (e.g., 50mg)')}
+        {renderInput('Frequency', frequency, setFrequency, 'Enter frequency (e.g., Once daily)')}
+        {renderInput('Instructions', instructions, setInstructions, 'Enter special instructions', 'default', true)}
+        {renderInput('Supply Count', supply, setSupply, 'Enter current supply', 'numeric')}
+        {renderInput('Low Supply Alert', lowSupplyThreshold, setLowSupplyThreshold, 'Enter low supply threshold', 'numeric')}
 
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: colors.text }]}>Dosage *</Text>
-          <TextInput
-            style={[styles.input, { 
-              backgroundColor: colors.surface,
-              color: colors.text,
-              borderColor: colors.border
-            }]}
-            value={dosage}
-            onChangeText={setDosage}
-            placeholder="Enter dosage (e.g., 100mg)"
-            placeholderTextColor={colors.textSecondary}
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: colors.text }]}>Frequency *</Text>
-          <TouchableOpacity
-            style={[styles.input, { 
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-              justifyContent: 'center'
-            }]}
-            onPress={() => setShowFrequencyModal(true)}
-          >
-            <Text style={{ color: frequency ? colors.text : colors.textSecondary }}>
-              {frequency || 'Select frequency'}
-            </Text>
-          </TouchableOpacity>
-          <FrequencyPicker
-            visible={showFrequencyModal}
-            onClose={() => setShowFrequencyModal(false)}
-            onSelect={setFrequency}
-            frequencies={FREQUENCIES}
-            selectedFrequency={frequency}
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: colors.text }]}>Instructions</Text>
-          <TextInput
-            style={[styles.input, { 
-              backgroundColor: colors.surface,
-              color: colors.text,
-              borderColor: colors.border,
-              height: 100,
-            }]}
-            value={instructions}
-            onChangeText={setInstructions}
-            placeholder="Enter special instructions"
-            placeholderTextColor={colors.textSecondary}
-            multiline
-            numberOfLines={4}
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: colors.text }]}>Supply Count *</Text>
-          <TextInput
-            style={[styles.input, { 
-              backgroundColor: colors.surface,
-              color: colors.text,
-              borderColor: colors.border
-            }]}
-            value={supply}
-            onChangeText={setSupply}
-            placeholder="Enter number of doses"
-            placeholderTextColor={colors.textSecondary}
-            keyboardType="numeric"
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: colors.text }]}>Low Supply Alert *</Text>
-          <TextInput
-            style={[styles.input, { 
-              backgroundColor: colors.surface,
-              color: colors.text,
-              borderColor: colors.border
-            }]}
-            value={lowSupplyThreshold}
-            onChangeText={setLowSupplyThreshold}
-            placeholder="Enter low supply threshold"
-            placeholderTextColor={colors.textSecondary}
-            keyboardType="numeric"
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: colors.text }]}>Scheduled Time *</Text>
+        <View style={styles.inputContainer}>
+          <Text style={[styles.label, { color: colors.text }]}>Scheduled Time</Text>
           <TouchableOpacity
             style={[styles.timeButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => setShowTimePicker(true)}
           >
-            <Text style={[styles.timeButtonText, { color: colors.text }]}>
-              {scheduledTime.toLocaleTimeString()}
+            <Ionicons name="time-outline" size={24} color={colors.primary} />
+            <Text style={[styles.timeText, { color: colors.text }]}>
+              {scheduledTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </Text>
-            <Ionicons name="time" size={24} color={colors.primary} />
           </TouchableOpacity>
         </View>
 
@@ -235,21 +162,28 @@ const AddMedicationScreen = () => {
             value={scheduledTime}
             mode="time"
             is24Hour={false}
+            display="default"
             onChange={handleTimeChange}
           />
         )}
 
         <TouchableOpacity
-          style={[styles.submitButton, { 
-            backgroundColor: colors.primary,
-            opacity: isSubmitting ? 0.7 : 1
-          }]}
+          style={[
+            styles.submitButton,
+            { backgroundColor: colors.primary },
+            isLoading && styles.disabledButton
+          ]}
           onPress={handleSubmit}
-          disabled={isSubmitting}
+          disabled={isLoading}
         >
-          <Text style={styles.submitButtonText}>
-            {isSubmitting ? 'Saving...' : 'Save Medication'}
-          </Text>
+          {isLoading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Ionicons name="add-circle-outline" size={24} color="#fff" />
+              <Text style={styles.submitButtonText}>Add Medication</Text>
+            </>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -261,61 +195,72 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
+    padding: 20,
+    paddingTop: 60,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
   },
   backButton: {
-    marginRight: 15,
+    marginRight: 10,
   },
-  title: {
+  headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#fff',
   },
-  form: {
+  content: {
+    flex: 1,
     padding: 20,
   },
-  inputGroup: {
+  inputContainer: {
     marginBottom: 20,
   },
   label: {
     fontSize: 16,
+    fontWeight: '600',
     marginBottom: 8,
-    fontWeight: '500',
   },
   input: {
     height: 50,
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 15,
+    borderRadius: 12,
+    paddingHorizontal: 16,
     fontSize: 16,
+  },
+  multilineInput: {
+    height: 100,
+    textAlignVertical: 'top',
+    paddingTop: 12,
   },
   timeButton: {
     height: 50,
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 15,
+    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingHorizontal: 16,
   },
-  timeButtonText: {
+  timeText: {
     fontSize: 16,
+    marginLeft: 10,
   },
   submitButton: {
-    height: 50,
-    borderRadius: 8,
-    justifyContent: 'center',
+    height: 56,
+    borderRadius: 28,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 20,
     marginBottom: 40,
+  },
+  disabledButton: {
+    opacity: 0.7,
   },
   submitButtonText: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    marginLeft: 8,
   },
 });
 

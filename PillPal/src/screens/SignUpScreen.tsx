@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { Text } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -19,6 +20,7 @@ import { useTheme } from '../context/ThemeContext';
 import AuthService from '../services/AuthService';
 import SecureStorageService from '../services/SecureStorageService';
 import BiometricService from '../services/BiometricService';
+import SupabaseAuthService from '../services/SupabaseAuthService';
 
 type SignUpScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'SignUp'>;
 
@@ -29,10 +31,10 @@ const SignUpScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [isBiometricSupported, setIsBiometricSupported] = useState(false);
-  const [enableBiometric, setEnableBiometric] = useState(false);
-  const [biometricType, setBiometricType] = useState<'fingerprint' | 'facial' | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [biometricSupported, setBiometricSupported] = useState(false);
 
   useEffect(() => {
     checkBiometricSupport();
@@ -40,169 +42,185 @@ const SignUpScreen = () => {
 
   const checkBiometricSupport = async () => {
     try {
-      const compatible = await LocalAuthentication.hasHardwareAsync();
-      const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
-      
-      if (compatible) {
-        if (Platform.OS === 'ios' && types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
-          setBiometricType('facial');
-        } else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
-          setBiometricType('fingerprint');
-        }
-        setIsBiometricSupported(true);
-      }
+      const isSupported = await BiometricService.isBiometricAvailable();
+      setBiometricSupported(isSupported);
     } catch (error) {
       console.error('Error checking biometric support:', error);
     }
   };
 
-  const setupBiometric = async () => {
-    try {
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: biometricType === 'facial' ? 'Set up Face ID' : 'Set up Fingerprint',
-        fallbackLabel: 'Use password',
-        disableDeviceFallback: false,
-      });
-
-      if (result.success) {
-        setEnableBiometric(true);
-        Alert.alert('Success', `${biometricType === 'facial' ? 'Face ID' : 'Fingerprint'} login has been enabled`);
-      }
-    } catch (error) {
-      console.error('Biometric setup error:', error);
-      Alert.alert('Error', 'Failed to set up biometric login');
-    }
-  };
-
-  const handleSignUp = async () => {
+  const validateForm = () => {
     if (!name || !email || !password || !confirmPassword) {
       Alert.alert('Error', 'Please fill in all fields');
-      return;
+      return false;
     }
 
     if (password !== confirmPassword) {
       Alert.alert('Error', 'Passwords do not match');
-      return;
+      return false;
     }
 
-    setLoading(true);
+    if (password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters long');
+      return false;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return false;
+    }
+
+    return true;
+  };
+
+  const setupBiometric = async () => {
     try {
-      const user = await AuthService.signup(email, password, name);
-      
-      if (enableBiometric) {
-        const biometricEnabled = await BiometricService.enableBiometrics(email, password);
-        if (biometricEnabled) {
-          // Update user preferences
-          user.preferences.biometricEnabled = true;
-          // In a real app, you would save the updated preferences
-        }
+      const authenticated = await BiometricService.authenticateWithBiometrics(
+        'Set up biometric login'
+      );
+
+      if (authenticated) {
+        await SecureStorageService.storeBiometricCredentials(email, password);
+        return true;
       }
-      
-      navigation.replace('MainTabs');
     } catch (error) {
-      Alert.alert('Error', 'Failed to create account. Please try again.');
+      console.error('Error setting up biometric:', error);
+    }
+    return false;
+  };
+
+  const handleSignUp = async () => {
+    if (!validateForm()) return;
+
+    setIsLoading(true);
+    try {
+      const result = await SupabaseAuthService.signUp(email, password, name);
+
+      if (result.success && result.user) {
+        Alert.alert(
+          'Verification Required',
+          'Please check your email for a verification link to complete your registration.',
+          [
+            {
+              text: 'OK',
+              onPress: () => navigation.navigate('Login')
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Error', result.error || 'Failed to create account');
+      }
+    } catch (error) {
+      console.error('Signup error:', error);
+      Alert.alert('Error', 'An unexpected error occurred');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-
-        <View style={styles.headerContainer}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
           <Text style={[styles.title, { color: colors.text }]}>Create Account</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Join PillPal to manage your medications effectively
-          </Text>
         </View>
 
         <View style={styles.formContainer}>
-          <TextInput
-            style={[styles.input, { backgroundColor: colors.surface, color: colors.text }]}
-            placeholder="Full Name"
-            placeholderTextColor={colors.textSecondary}
-            value={name}
-            onChangeText={setName}
-          />
-          <TextInput
-            style={[styles.input, { backgroundColor: colors.surface, color: colors.text }]}
-            placeholder="Email"
-            placeholderTextColor={colors.textSecondary}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-          <TextInput
-            style={[styles.input, { backgroundColor: colors.surface, color: colors.text }]}
-            placeholder="Password"
-            placeholderTextColor={colors.textSecondary}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
-          <TextInput
-            style={[styles.input, { backgroundColor: colors.surface, color: colors.text }]}
-            placeholder="Confirm Password"
-            placeholderTextColor={colors.textSecondary}
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
-          />
+          <View style={styles.inputContainer}>
+            <Ionicons name="person-outline" size={24} color={colors.textSecondary} />
+            <TextInput
+              style={[styles.input, { color: colors.text }]}
+              placeholder="Full Name"
+              placeholderTextColor={colors.textSecondary}
+              value={name}
+              onChangeText={setName}
+            />
+          </View>
 
-          {isBiometricSupported && (
-            <TouchableOpacity
-              style={[
-                styles.biometricButton,
-                {
-                  borderColor: colors.primary,
-                  backgroundColor: enableBiometric ? `${colors.primary}20` : 'transparent',
-                },
-              ]}
-              onPress={setupBiometric}
-            >
+          <View style={styles.inputContainer}>
+            <Ionicons name="mail-outline" size={24} color={colors.textSecondary} />
+            <TextInput
+              style={[styles.input, { color: colors.text }]}
+              placeholder="Email"
+              placeholderTextColor={colors.textSecondary}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Ionicons name="lock-closed-outline" size={24} color={colors.textSecondary} />
+            <TextInput
+              style={[styles.input, { color: colors.text }]}
+              placeholder="Password"
+              placeholderTextColor={colors.textSecondary}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+            />
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
               <Ionicons
-                name={biometricType === 'facial' ? 'scan-outline' : 'finger-print'}
+                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                 size={24}
-                color={colors.primary}
+                color={colors.textSecondary}
               />
-              <Text style={[styles.biometricButtonText, { color: colors.primary }]}>
-                {enableBiometric 
-                  ? `${biometricType === 'facial' ? 'Face ID' : 'Fingerprint'} Login Enabled`
-                  : `Enable ${biometricType === 'facial' ? 'Face ID' : 'Fingerprint'} Login`}
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Ionicons name="lock-closed-outline" size={24} color={colors.textSecondary} />
+            <TextInput
+              style={[styles.input, { color: colors.text }]}
+              placeholder="Confirm Password"
+              placeholderTextColor={colors.textSecondary}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry={!showConfirmPassword}
+            />
+            <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+              <Ionicons
+                name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={24}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.signupButton, { backgroundColor: colors.primary }]}
+            onPress={handleSignUp}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.signupButtonText}>Create Account</Text>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.loginContainer}>
+            <Text style={[styles.loginText, { color: colors.textSecondary }]}>
+              Already have an account?
+            </Text>
+            <TouchableOpacity onPress={() => navigation.goBack()}>
+              <Text style={[styles.loginLink, { color: colors.primary }]}>
+                Login
               </Text>
             </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: colors.primary }]}
-            onPress={handleSignUp}
-            disabled={loading}
-          >
-            <Text style={styles.buttonText}>
-              {loading ? 'Creating Account...' : 'Sign Up'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.loginLink}
-            onPress={() => navigation.navigate('Login')}
-          >
-            <Text style={[styles.loginLinkText, { color: colors.textSecondary }]}>
-              Already have an account?{' '}
-              <Text style={{ color: colors.primary }}>Login</Text>
-            </Text>
-          </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -217,63 +235,61 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 20,
   },
-  backButton: {
-    marginTop: Platform.OS === 'ios' ? 40 : 20,
-    marginBottom: 20,
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 40,
+    marginBottom: 40,
   },
-  headerContainer: {
-    marginBottom: 30,
+  backButton: {
+    padding: 8,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  subtitle: {
-    fontSize: 16,
+    marginLeft: 16,
   },
   formContainer: {
     width: '100%',
   },
-  input: {
-    height: 50,
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    marginBottom: 15,
-    fontSize: 16,
-  },
-  button: {
-    height: 50,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  biometricButton: {
-    height: 50,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 15,
-    borderWidth: 2,
+  inputContainer: {
     flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+    marginBottom: 20,
+    paddingVertical: 8,
   },
-  biometricButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+  input: {
+    flex: 1,
     marginLeft: 10,
+    fontSize: 16,
+  },
+  signupButton: {
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  signupButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  loginContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  loginText: {
+    fontSize: 16,
   },
   loginLink: {
-    marginTop: 20,
-    alignItems: 'center',
-  },
-  loginLinkText: {
     fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 5,
   },
 });
 

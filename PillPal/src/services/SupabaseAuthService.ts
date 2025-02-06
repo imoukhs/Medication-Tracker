@@ -1,66 +1,101 @@
 import { supabase } from '../config/supabaseConfig';
-import { User } from '@supabase/supabase-js';
-import ProfileService from './ProfileService';
+import { User, AuthResponse } from '@supabase/supabase-js';
+import { AuthResult, UserRole } from '../types/';
 
 class SupabaseAuthService {
   private isGuest: boolean = false;
 
-  async signUp(email: string, password: string, name: string): Promise<{ user: User | null; error: Error | null; needsEmailConfirmation?: boolean }> {
+  async signUp(
+    email: string, 
+    password: string, 
+    name: string
+  ): Promise<AuthResult> {
     try {
       if (!email || !password || !name) {
         throw new Error('Email, password, and name are required');
       }
 
-      // Sign up with email confirmation enabled
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
-            name: name,
+            name,
+            role: 'patient',
           },
-          emailRedirectTo: 'pillpal://', // Add your app's URL scheme
         },
       });
 
-      if (signUpError) {
-        console.error('Signup error:', signUpError);
-        throw signUpError;
-      }
+      if (error) throw error;
 
-      if (!authData.user) {
-        throw new Error('Failed to create user');
-      }
+      if (data?.user) {
+        const defaultProfile = {
+          id: data.user.id,
+          email,
+          name,
+          role: 'patient' as UserRole,
+          preferences: {
+            theme: 'light' as const,
+            isSystemTheme: true,
+            notifications: true,
+            biometricEnabled: false,
+            emergencyContact: null
+          },
+          relationships: [],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
 
-      // Check if email confirmation is needed
-      const needsEmailConfirmation = !authData.user.email_confirmed_at && !authData.user.confirmed_at;
+        try {
+          // Use upsert instead of insert to handle potential duplicates
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .upsert([defaultProfile], {
+              onConflict: 'id',
+              ignoreDuplicates: false
+            });
 
-      if (!needsEmailConfirmation) {
-        // Create profile immediately if email is already confirmed
-        const { profile, error: profileError } = await ProfileService.createProfile(authData.user, name);
-        
-        if (profileError) {
+          if (profileError) throw profileError;
+
+          return {
+            success: true,
+            user: {
+              id: data.user.id,
+              email: data.user.email!,
+              name,
+              role: 'patient',
+              preferences: defaultProfile.preferences,
+              relationships: defaultProfile.relationships,
+            },
+          };
+        } catch (profileError) {
           console.error('Error creating profile:', profileError);
-          await supabase.auth.signOut();
-          throw profileError;
+          // Even if profile creation fails, return basic user data
+          return {
+            success: true,
+            user: {
+              id: data.user.id,
+              email: data.user.email!,
+              name,
+              role: 'patient',
+              preferences: defaultProfile.preferences,
+              relationships: [],
+            },
+          };
         }
       }
 
-      // Disable guest mode on successful signup
-      this.isGuest = false;
-
-      return { 
-        user: authData.user, 
-        error: null,
-        needsEmailConfirmation
-      };
+      throw new Error('Failed to create user');
     } catch (error) {
       console.error('Error signing up:', error);
-      return { user: null, error: error as Error };
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'An error occurred during signup',
+      };
     }
   }
 
-  async signIn(email: string, password: string): Promise<{ user: User | null; error: Error | null }> {
+  async signIn(email: string, password: string): Promise<AuthResult> {
     try {
       if (!email || !password) {
         throw new Error('Email and password are required');
@@ -73,27 +108,74 @@ class SupabaseAuthService {
 
       if (error) throw error;
 
-      // Check if email is confirmed
-      if (data.user && !data.user.email_confirmed_at && !data.user.confirmed_at) {
-        throw new Error('Please confirm your email before signing in');
+      if (data?.user) {
+        // Create default profile data
+        const defaultProfile = {
+          id: data.user.id,
+          email: data.user.email!,
+          name: data.user.user_metadata?.name || email.split('@')[0],
+          role: 'patient' as UserRole,
+          preferences: {
+            theme: 'light' as const,
+            isSystemTheme: true,
+            notifications: true,
+            biometricEnabled: false,
+            emergencyContact: null
+          },
+          relationships: [],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        try {
+          // Try to create/update the profile
+          const { data: profileData, error: upsertError } = await supabase
+            .from('profiles')
+            .upsert([defaultProfile], {
+              onConflict: 'id',
+              ignoreDuplicates: false
+            })
+            .select('*')
+            .single();
+
+          if (upsertError) throw upsertError;
+
+          return {
+            success: true,
+            user: {
+              id: data.user.id,
+              email: data.user.email!,
+              name: profileData?.name || defaultProfile.name,
+              role: (profileData?.role || defaultProfile.role) as UserRole,
+              preferences: profileData?.preferences || defaultProfile.preferences,
+              relationships: profileData?.relationships || defaultProfile.relationships,
+            },
+          };
+        } catch (profileError) {
+          console.error('Error handling profile:', profileError);
+          // If there's any error with the profile, return the default user data
+          return {
+            success: true,
+            user: {
+              id: data.user.id,
+              email: data.user.email!,
+              name: defaultProfile.name,
+              role: defaultProfile.role,
+              preferences: defaultProfile.preferences,
+              relationships: defaultProfile.relationships,
+            },
+          };
+        }
       }
 
-      // Disable guest mode on successful sign in
-      this.isGuest = false;
-
-      return { user: data.user, error: null };
+      throw new Error('Failed to sign in');
     } catch (error) {
       console.error('Error signing in:', error);
-      return { user: null, error: error as Error };
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'An error occurred during sign in',
+      };
     }
-  }
-
-  async enableGuestMode(): Promise<void> {
-    this.isGuest = true;
-  }
-
-  async disableGuestMode(): Promise<void> {
-    this.isGuest = false;
   }
 
   async signOut(): Promise<{ error: Error | null }> {
@@ -101,9 +183,7 @@ class SupabaseAuthService {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       
-      // Reset guest mode on sign out
       this.isGuest = false;
-      
       return { error: null };
     } catch (error) {
       console.error('Error signing out:', error);
@@ -111,16 +191,32 @@ class SupabaseAuthService {
     }
   }
 
-  isGuestMode(): boolean {
-    return this.isGuest;
+  async getCurrentUser(): Promise<User | null> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      // Fetch user profile
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError) throw profileError;
+
+      return {
+        ...user,
+        ...profile,
+      };
+    } catch (error) {
+      console.error('Error getting current user:', error);
+      return null;
+    }
   }
 
   async resetPassword(email: string): Promise<{ error: Error | null }> {
     try {
-      if (!email) {
-        throw new Error('Email is required');
-      }
-
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: 'pillpal://reset-password',
       });
@@ -132,25 +228,96 @@ class SupabaseAuthService {
     }
   }
 
-  async getCurrentUser(): Promise<User | null> {
+  async updatePassword(newPassword: string): Promise<{ error: Error | null }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      return user;
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+      if (error) throw error;
+      return { error: null };
     } catch (error) {
-      console.error('Error getting current user:', error);
-      return null;
+      console.error('Error updating password:', error);
+      return { error: error as Error };
+    }
+  }
+
+  async updateProfile(updates: {
+    name?: string;
+    email?: string;
+    role?: UserRole;
+    preferences?: any;
+  }): Promise<{ error: Error | null }> {
+    try {
+      const user = await this.getCurrentUser();
+      if (!user) throw new Error('No user logged in');
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
+      return { error: null };
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      return { error: error as Error };
     }
   }
 
   onAuthStateChange(callback: (user: User | null) => void) {
-    return supabase.auth.onAuthStateChange((_event, session) => {
-      callback(session?.user ?? null);
+    return supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) {
+        // Fetch full user profile when auth state changes
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (!error && profile) {
+          callback({ ...session.user, ...profile });
+        } else {
+          callback(session.user);
+        }
+      } else {
+        callback(null);
+      }
     });
   }
 
   async isAuthenticated(): Promise<boolean> {
     const user = await this.getCurrentUser();
     return user !== null || this.isGuest;
+  }
+
+  enableGuestMode(): void {
+    this.isGuest = true;
+  }
+
+  disableGuestMode(): void {
+    this.isGuest = false;
+  }
+
+  isGuestMode(): boolean {
+    return this.isGuest;
+  }
+
+  async resendConfirmationEmail(email: string): Promise<{ error: Error | null }> {
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email,
+      });
+      
+      if (error) throw error;
+      return { error: null };
+    } catch (error) {
+      console.error('Error resending confirmation email:', error);
+      return { error: error as Error };
+    }
   }
 }
 

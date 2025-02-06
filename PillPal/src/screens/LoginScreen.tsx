@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { Text } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -19,6 +20,7 @@ import { useTheme } from '../context/ThemeContext';
 import AuthService from '../services/AuthService';
 import SecureStorageService from '../services/SecureStorageService';
 import BiometricService from '../services/BiometricService';
+import SupabaseAuthService from '../services/SupabaseAuthService';
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
@@ -27,7 +29,8 @@ const LoginScreen = () => {
   const { colors } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [isBiometricSupported, setIsBiometricSupported] = useState(false);
   const [biometricType, setBiometricType] = useState<'fingerprint' | 'facial' | null>(null);
 
@@ -37,21 +40,16 @@ const LoginScreen = () => {
 
   const checkBiometricSupport = async () => {
     try {
-      const isAvailable = await BiometricService.isBiometricAvailable();
-      setIsBiometricSupported(isAvailable);
+      const isSupported = await BiometricService.isBiometricAvailable();
+      const isEnabled = await SecureStorageService.isBiometricEnabled();
+      setIsBiometricSupported(isSupported && isEnabled);
       
-      if (isAvailable) {
+      if (isSupported) {
         const types = await BiometricService.getBiometricType();
         if (Platform.OS === 'ios' && types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
           setBiometricType('facial');
         } else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
           setBiometricType('fingerprint');
-        }
-        
-        // Check if user has enabled biometric login
-        const isEnabled = await SecureStorageService.isBiometricEnabled();
-        if (isEnabled) {
-          handleBiometricAuth();
         }
       }
     } catch (error) {
@@ -61,60 +59,95 @@ const LoginScreen = () => {
 
   const handleBiometricAuth = async () => {
     try {
+      const credentials = await SecureStorageService.getBiometricCredentials();
+      if (!credentials) {
+        Alert.alert('Error', 'No stored credentials found');
+        return;
+      }
+
       const authenticated = await BiometricService.authenticateWithBiometrics(
-        biometricType === 'facial' ? 'Login with Face ID' : 'Login with Fingerprint'
+        'Login to PillPal'
       );
 
       if (authenticated) {
-        const credentials = await SecureStorageService.getBiometricCredentials();
-        if (credentials) {
-          setLoading(true);
-          try {
-            await AuthService.login(credentials.email, credentials.password);
-            navigation.replace('MainTabs');
-          } catch (error) {
-            Alert.alert('Error', 'Failed to login. Please try again.');
-          } finally {
-            setLoading(false);
-          }
+        setIsLoading(true);
+        const result = await SupabaseAuthService.signIn(
+          credentials.email,
+          credentials.password
+        );
+
+        if (result.success && result.user) {
+          navigation.replace('MainTabs');
+        } else {
+          Alert.alert('Error', result.error || 'Failed to login');
         }
       }
     } catch (error) {
-      console.error('Biometric error:', error);
+      console.error('Error with biometric auth:', error);
       Alert.alert('Error', 'Biometric authentication failed');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert('Error', 'Please enter both email and password');
       return;
     }
 
-    setLoading(true);
+    setIsLoading(true);
     try {
-      await AuthService.login(email, password);
-      // Store credentials if biometric is supported
-      if (isBiometricSupported) {
-        await SecureStorageService.storeBiometricCredentials(email, password);
+      const result = await SupabaseAuthService.signIn(email, password);
+
+      if (result.success && result.user) {
+        navigation.replace('MainTabs');
+      } else {
+        if (result.error?.includes('Email not confirmed')) {
+          Alert.alert(
+            'Email Not Verified',
+            'Please check your email for a verification link. Would you like us to send another verification email?',
+            [
+              {
+                text: 'Cancel',
+                style: 'cancel'
+              },
+              {
+                text: 'Resend',
+                onPress: async () => {
+                  try {
+                    const { error } = await SupabaseAuthService.resendConfirmationEmail(email);
+                    if (error) {
+                      Alert.alert('Error', error.message);
+                    } else {
+                      Alert.alert('Success', 'Verification email has been resent. Please check your inbox.');
+                    }
+                  } catch (error) {
+                    Alert.alert('Error', 'Failed to resend verification email');
+                  }
+                }
+              }
+            ]
+          );
+        } else {
+          Alert.alert('Error', result.error || 'Failed to login');
+        }
       }
-      navigation.replace('MainTabs');
     } catch (error) {
-      Alert.alert('Error', 'Failed to login. Please try again.');
+      console.error('Login error:', error);
+      Alert.alert('Error', 'An unexpected error occurred');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   const handleGuestMode = async () => {
-    setLoading(true);
     try {
-      await AuthService.enableGuestMode();
+      SupabaseAuthService.enableGuestMode();
       navigation.replace('MainTabs');
     } catch (error) {
-      Alert.alert('Error', 'Failed to enable guest mode. Please try again.');
-    } finally {
-      setLoading(false);
+      console.error('Error enabling guest mode:', error);
+      Alert.alert('Error', 'Failed to enable guest mode');
     }
   };
 
@@ -125,7 +158,8 @@ const LoginScreen = () => {
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.logoContainer}>
@@ -137,32 +171,48 @@ const LoginScreen = () => {
         </View>
 
         <View style={styles.formContainer}>
-          <TextInput
-            style={[styles.input, { backgroundColor: colors.surface, color: colors.text }]}
-            placeholder="Email"
-            placeholderTextColor={colors.textSecondary}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-          <TextInput
-            style={[styles.input, { backgroundColor: colors.surface, color: colors.text }]}
-            placeholder="Password"
-            placeholderTextColor={colors.textSecondary}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
+          <View style={styles.inputContainer}>
+            <Ionicons name="mail-outline" size={24} color={colors.textSecondary} />
+            <TextInput
+              style={[styles.input, { color: colors.text }]}
+              placeholder="Email"
+              placeholderTextColor={colors.textSecondary}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Ionicons name="lock-closed-outline" size={24} color={colors.textSecondary} />
+            <TextInput
+              style={[styles.input, { color: colors.text }]}
+              placeholder="Password"
+              placeholderTextColor={colors.textSecondary}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+            />
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+              <Ionicons
+                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={24}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+          </View>
 
           <TouchableOpacity
-            style={[styles.button, { backgroundColor: colors.primary }]}
+            style={[styles.loginButton, { backgroundColor: colors.primary }]}
             onPress={handleLogin}
-            disabled={loading}
+            disabled={isLoading}
           >
-            <Text style={styles.buttonText}>
-              {loading ? 'Logging in...' : 'Login'}
-            </Text>
+            {isLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.loginButtonText}>Login</Text>
+            )}
           </TouchableOpacity>
 
           {isBiometricSupported && (
@@ -170,34 +220,32 @@ const LoginScreen = () => {
               style={[styles.biometricButton, { borderColor: colors.primary }]}
               onPress={handleBiometricAuth}
             >
-              <Ionicons 
-                name={biometricType === 'facial' ? 'scan-outline' : 'finger-print'} 
-                size={24} 
-                color={colors.primary} 
-              />
+              <Ionicons name="finger-print" size={24} color={colors.primary} />
               <Text style={[styles.biometricButtonText, { color: colors.primary }]}>
-                Login with {biometricType === 'facial' ? 'Face ID' : 'Fingerprint'}
+                Login with Biometrics
               </Text>
             </TouchableOpacity>
           )}
 
           <TouchableOpacity
-            style={[styles.button, { backgroundColor: colors.secondary }]}
-            onPress={handleSignUp}
-            disabled={loading}
-          >
-            <Text style={styles.buttonText}>Create Account</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
             style={[styles.guestButton, { borderColor: colors.primary }]}
             onPress={handleGuestMode}
-            disabled={loading}
           >
             <Text style={[styles.guestButtonText, { color: colors.primary }]}>
               Continue as Guest
             </Text>
           </TouchableOpacity>
+
+          <View style={styles.signupContainer}>
+            <Text style={[styles.signupText, { color: colors.textSecondary }]}>
+              Don't have an account?
+            </Text>
+            <TouchableOpacity onPress={handleSignUp}>
+              <Text style={[styles.signupLink, { color: colors.primary }]}>
+                Sign Up
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -229,33 +277,39 @@ const styles = StyleSheet.create({
   formContainer: {
     width: '100%',
   },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+    marginBottom: 20,
+    paddingVertical: 8,
+  },
   input: {
-    height: 50,
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    marginBottom: 15,
+    flex: 1,
+    marginLeft: 10,
     fontSize: 16,
   },
-  button: {
+  loginButton: {
     height: 50,
-    borderRadius: 8,
+    borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 15,
+    marginTop: 20,
   },
-  buttonText: {
+  loginButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
   biometricButton: {
+    flexDirection: 'row',
     height: 50,
-    borderRadius: 8,
+    borderRadius: 25,
+    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 15,
-    borderWidth: 2,
-    flexDirection: 'row',
+    marginTop: 10,
   },
   biometricButtonText: {
     fontSize: 16,
@@ -264,14 +318,29 @@ const styles = StyleSheet.create({
   },
   guestButton: {
     height: 50,
-    borderRadius: 8,
+    borderRadius: 25,
+    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
+    marginTop: 10,
   },
   guestButtonText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  signupContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  signupText: {
+    fontSize: 16,
+  },
+  signupLink: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 5,
   },
 });
 

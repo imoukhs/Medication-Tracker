@@ -106,142 +106,110 @@ const AppNavigator = () => {
   const currentTheme = theme[themeMode];
 
   return (
-    <NavigationContainer
-      theme={{
-        dark: themeMode === 'dark',
-        colors: {
-          primary: currentTheme.primary,
-          background: colors.background,
-          card: colors.surface,
-          text: colors.text,
-          border: colors.border,
-          notification: currentTheme.primary,
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: currentTheme.primary,
         },
-        fonts: {
-          regular: {
-            fontFamily: 'System',
-            fontWeight: '400',
-          },
-          medium: {
-            fontFamily: 'System',
-            fontWeight: '500',
-          },
-          bold: {
-            fontFamily: 'System',
-            fontWeight: '700',
-          },
-          heavy: {
-            fontFamily: 'System',
-            fontWeight: '900',
-          },
-        }
+        headerTintColor: '#fff',
+        headerTitleStyle: {
+          fontWeight: 'bold',
+        },
+        contentStyle: {
+          backgroundColor: colors.background,
+        },
       }}
     >
-      <Stack.Navigator
-        screenOptions={{
-          headerStyle: {
-            backgroundColor: currentTheme.primary,
-          },
-          headerTintColor: '#fff',
-          headerTitleStyle: {
-            fontWeight: 'bold',
-          },
-          contentStyle: {
-            backgroundColor: colors.background,
-          },
+      <Stack.Screen 
+        name="Login" 
+        component={LoginScreen} 
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen 
+        name="SignUp" 
+        component={SignUpScreen} 
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen 
+        name="MainTabs" 
+        component={TabNavigator} 
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="MedicationDetails"
+        component={MedicationDetailsScreen}
+        options={{ title: 'Medication Details' }}
+      />
+      <Stack.Screen
+        name="AddMedication"
+        component={AddMedicationScreen}
+        options={{ title: 'Add Medication' }}
+      />
+      <Stack.Screen
+        name="EditMedication"
+        component={EditMedicationScreen}
+        options={{ title: 'Edit Medication' }}
+      />
+      <Stack.Screen
+        name="EmergencyContact"
+        component={EmergencyContactScreen}
+        options={{
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
         }}
-      >
-        <Stack.Screen 
-          name="Login" 
-          component={LoginScreen} 
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen 
-          name="SignUp" 
-          component={SignUpScreen} 
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen 
-          name="MainTabs" 
-          component={TabNavigator} 
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="MedicationDetails"
-          component={MedicationDetailsScreen}
-          options={{ title: 'Medication Details' }}
-        />
-        <Stack.Screen
-          name="AddMedication"
-          component={AddMedicationScreen}
-          options={{ title: 'Add Medication' }}
-        />
-        <Stack.Screen
-          name="EditMedication"
-          component={EditMedicationScreen}
-          options={{ title: 'Edit Medication' }}
-        />
-        <Stack.Screen
-          name="EmergencyContact"
-          component={EmergencyContactScreen}
-          options={{
-            presentation: 'modal',
-            animation: 'slide_from_bottom',
-          }}
-        />
-        <Stack.Screen
-          name="PersonalInformation"
-          component={PersonalInformationScreen}
-          options={{
-            presentation: 'modal',
-            animation: 'slide_from_bottom',
-          }}
-        />
-        <Stack.Screen
-          name="MedicalInformation"
-          component={MedicalInformationScreen}
-          options={{
-            presentation: 'modal',
-            animation: 'slide_from_bottom',
-          }}
-        />
-        <Stack.Screen
-          name="NotificationPreferences"
-          component={NotificationPreferencesScreen}
-          options={{
-            presentation: 'modal',
-            animation: 'slide_from_bottom',
-          }}
-        />
-        <Stack.Screen
-          name="SharedAccess"
-          component={SharedAccessScreen}
-          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-        />
-        <Stack.Screen
-          name="Achievements"
-          component={AchievementsScreen}
-          options={{
-            presentation: 'modal',
-            animation: 'slide_from_bottom',
-          }}
-        />
-        <Stack.Screen
-          name="PrivacyAndSecurity"
-          component={PrivacyAndSecurityScreen}
-          options={{
-            presentation: 'modal',
-          }}
-        />
-        <Stack.Screen
-          name="ChangePassword"
-          component={ChangePasswordScreen}
-          options={{
-            presentation: 'modal',
-          }}
-        />
-      </Stack.Navigator>
-    </NavigationContainer>
+      />
+      <Stack.Screen
+        name="PersonalInformation"
+        component={PersonalInformationScreen}
+        options={{
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+        }}
+      />
+      <Stack.Screen
+        name="MedicalInformation"
+        component={MedicalInformationScreen}
+        options={{
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+        }}
+      />
+      <Stack.Screen
+        name="NotificationPreferences"
+        component={NotificationPreferencesScreen}
+        options={{
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+        }}
+      />
+      <Stack.Screen
+        name="SharedAccess"
+        component={SharedAccessScreen}
+        options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+      />
+      <Stack.Screen
+        name="Achievements"
+        component={AchievementsScreen}
+        options={{
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+        }}
+      />
+      <Stack.Screen
+        name="PrivacyAndSecurity"
+        component={PrivacyAndSecurityScreen}
+        options={{
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="ChangePassword"
+        component={ChangePasswordScreen}
+        options={{
+          presentation: 'modal',
+        }}
+      />
+    </Stack.Navigator>
   );
 };
 

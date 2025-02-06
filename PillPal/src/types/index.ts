@@ -54,8 +54,8 @@ export interface NotificationUpdate {
 
 export interface AuthResult {
   success: boolean;
-  error?: string;
   user?: User;
+  error?: string;
 }
 
 export interface Badge {

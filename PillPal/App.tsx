@@ -21,6 +21,7 @@ import { RootStackParamList } from './src/types';
 import CustomTabBar from './src/components/CustomTabBar';
 import AuthService from './src/services/AuthService';
 import AppNavigator from './src/navigation/AppNavigator';
+import { linking } from './src/utils/linking';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator();
@@ -91,7 +92,6 @@ export default function App() {
       await AuthService.initialize();
       setIsAuthenticated(AuthService.isAuthenticated());
       setIsLoading(false);
-      // Show splash for at least 2 seconds
       setTimeout(() => {
         setShowSplash(false);
       }, 2000);
@@ -108,7 +108,9 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <AppNavigator />
+      <NavigationContainer linking={linking}>
+        <AppNavigator />
+      </NavigationContainer>
     </ThemeProvider>
   );
 }
