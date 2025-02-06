@@ -15,7 +15,9 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSFaceIDUsageDescription": "PillPal uses Face ID to securely log you into the app and protect your medical information."
+        "NSFaceIDUsageDescription": "PillPal uses Face ID to securely log you into the app and protect your medical information.",
+        "NSPhotoLibraryUsageDescription": "PillPal needs access to your photo library to let you select a profile picture.",
+        "NSCameraUsageDescription": "PillPal needs access to your camera to let you take profile pictures."
       }
     },
     "android": {
@@ -25,7 +27,10 @@
       },
       "permissions": [
         "USE_BIOMETRIC",
-        "USE_FINGERPRINT"
+        "USE_FINGERPRINT",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {
@@ -38,7 +43,14 @@
           "faceIDPermission": "Allow PillPal to use Face ID to securely log you in and protect your medical information."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "PillPal needs access to your photos to let you select a profile picture.",
+          "cameraPermission": "PillPal needs access to your camera to let you take profile pictures."
+        }
+      ]
     ]
   }
 }

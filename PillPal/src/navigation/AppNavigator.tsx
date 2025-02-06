@@ -24,6 +24,8 @@ import SharedAccessScreen from '../screens/SharedAccessScreen';
 import AchievementsScreen from '../screens/AchievementsScreen';
 import LoginScreen from '../screens/LoginScreen';
 import SignUpScreen from '../screens/SignUpScreen';
+import PrivacyAndSecurityScreen from '../screens/PrivacyAndSecurityScreen';
+import ChangePasswordScreen from '../screens/ChangePasswordScreen';
 
 const Tab = createBottomTabNavigator<RootStackParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -222,6 +224,20 @@ const AppNavigator = () => {
           options={{
             presentation: 'modal',
             animation: 'slide_from_bottom',
+          }}
+        />
+        <Stack.Screen
+          name="PrivacyAndSecurity"
+          component={PrivacyAndSecurityScreen}
+          options={{
+            presentation: 'modal',
+          }}
+        />
+        <Stack.Screen
+          name="ChangePassword"
+          component={ChangePasswordScreen}
+          options={{
+            presentation: 'modal',
           }}
         />
       </Stack.Navigator>

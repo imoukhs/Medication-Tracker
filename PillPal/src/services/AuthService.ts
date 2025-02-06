@@ -112,6 +112,34 @@ class AuthService {
   isAuthenticated(): boolean {
     return this.currentUser !== null || this.isGuest;
   }
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    try {
+      // Verify current password
+      const user = await this.getCurrentUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      // In a real app, you would make an API call to change the password
+      // For now, we'll just simulate the change
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Update the stored password (in a real app, this would be handled by the backend)
+      const userData = await AsyncStorage.getItem('userData');
+      if (userData) {
+        const parsedData = JSON.parse(userData);
+        if (parsedData.password !== currentPassword) {
+          throw new Error('Current password is incorrect');
+        }
+        parsedData.password = newPassword;
+        await AsyncStorage.setItem('userData', JSON.stringify(parsedData));
+      }
+    } catch (error) {
+      console.error('Error changing password:', error);
+      throw error;
+    }
+  }
 }
 
 export default new AuthService(); 

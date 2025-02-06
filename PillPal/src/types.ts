@@ -12,6 +12,7 @@ export type RootStackParamList = {
   MedicalInformation: { modal?: boolean };
   NotificationPreferences: { modal?: boolean };
   PrivacyAndSecurity: { modal?: boolean };
+  ChangePassword: { modal?: boolean };
   HomeTab: undefined;
   Settings: undefined;
   Profile: undefined;
