@@ -1,11 +1,4 @@
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  preferences: UserPreferences;
-  role: UserRole;
-  relationships: UserRelationship[];
-}
+export type UserRole = 'patient' | 'caregiver' | 'family_member' | 'healthcare_provider';
 
 export interface UserPreferences {
   theme: 'light' | 'dark';
@@ -13,6 +6,23 @@ export interface UserPreferences {
   notifications: boolean;
   biometricEnabled: boolean;
   emergencyContact: EmergencyContact | null;
+  [key: string]: any;
+}
+
+export interface UserRelationship {
+  id: string;
+  type: 'caregiver' | 'dependent';
+  userId: string;
+  status: 'pending' | 'active' | 'rejected';
+}
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  preferences: UserPreferences;
+  relationships: UserRelationship[];
 }
 
 export interface Medication {
@@ -21,9 +31,9 @@ export interface Medication {
   dosage: string;
   frequency: string;
   instructions: string;
-  scheduled_time: Date;
+  scheduledTime: Date;
   supply: number;
-  low_supply_threshold: number;
+  lowSupplyThreshold: number;
   owner_id: string;
   shared_with: string[];
   created_at?: Date;
@@ -83,29 +93,35 @@ export interface NotificationResponse {
   };
 }
 
+export interface MedicationDetailsScreenProps {
+  route: {
+    params: {
+      medicationId: string;
+    };
+  };
+  navigation: any;
+}
+
 export type RootStackParamList = {
-  MainTabs: undefined;
   Login: undefined;
   SignUp: undefined;
-  Home: undefined;
-  HomeTab: undefined;
-  Settings: undefined;
-  Profile: undefined;
-  Progress: undefined;
-  MedicationDetails: { medicationId: string };
+  MainTabs: undefined;
+  MedicationDetails: { medicationId: string } | undefined;
   AddMedication: undefined;
   EditMedication: { medicationId: string };
   EmergencyContact: { modal?: boolean };
   PersonalInformation: { modal?: boolean };
   MedicalInformation: { modal?: boolean };
   NotificationPreferences: { modal?: boolean };
-  PrivacyAndSecurity: { modal?: boolean };
   SharedAccess: { modal?: boolean };
-  Achievements: { modal?: boolean };
+  PrivacyAndSecurity: { modal?: boolean };
   ChangePassword: { modal?: boolean };
+  Achievements: { modal?: boolean };
+  HomeTab: undefined;
+  Settings: undefined;
+  Profile: undefined;
+  Progress: undefined;
 };
-
-export type UserRole = 'patient' | 'caregiver' | 'healthcare_provider' | 'family_member';
 
 export interface UserPermissions {
   canViewMedications: boolean;
@@ -115,14 +131,4 @@ export interface UserPermissions {
   canEditMedicalInfo: boolean;
   canManageEmergencyContacts: boolean;
   canReceiveAlerts: boolean;
-}
-
-export interface UserRelationship {
-  id: string;
-  userId: string;
-  relatedUserId: string;
-  role: UserRole;
-  permissions: UserPermissions;
-  status: 'pending' | 'active' | 'rejected';
-  createdAt: Date;
 }

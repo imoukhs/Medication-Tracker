@@ -7,6 +7,8 @@ import CustomTabBar from '../components/CustomTabBar';
 import { theme } from '../theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 // Import screens
 import HomeScreen from '../screens/HomeScreen';
@@ -104,37 +106,21 @@ const TabNavigator = () => {
 const AppNavigator = () => {
   const { colors, themeMode } = useTheme();
   const currentTheme = theme[themeMode];
+  const { user } = useAuth();
 
   return (
     <Stack.Navigator
       screenOptions={{
-        headerStyle: {
-          backgroundColor: currentTheme.primary,
-        },
-        headerTintColor: '#fff',
-        headerTitleStyle: {
-          fontWeight: 'bold',
-        },
+        headerShown: false,
         contentStyle: {
           backgroundColor: colors.background,
         },
       }}
+      initialRouteName={user ? 'MainTabs' : 'Login'}
     >
-      <Stack.Screen 
-        name="Login" 
-        component={LoginScreen} 
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen 
-        name="SignUp" 
-        component={SignUpScreen} 
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen 
-        name="MainTabs" 
-        component={TabNavigator} 
-        options={{ headerShown: false }}
-      />
+      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="SignUp" component={SignUpScreen} />
+      <Stack.Screen name="MainTabs" component={TabNavigator} />
       <Stack.Screen
         name="MedicationDetails"
         component={MedicationDetailsScreen}
@@ -185,14 +171,14 @@ const AppNavigator = () => {
       <Stack.Screen
         name="SharedAccess"
         component={SharedAccessScreen}
-        options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-      />
-      <Stack.Screen
-        name="Achievements"
-        component={AchievementsScreen}
         options={{
           presentation: 'modal',
           animation: 'slide_from_bottom',
+          animationDuration: 200,
+          cardOverlayEnabled: true,
+          gestureEnabled: true,
+          gestureDirection: 'vertical',
+          cardStyle: { backgroundColor: 'transparent' },
         }}
       />
       <Stack.Screen
@@ -207,6 +193,15 @@ const AppNavigator = () => {
         component={ChangePasswordScreen}
         options={{
           presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="Achievements"
+        component={AchievementsScreen}
+        options={{
+          presentation: 'modal',
+          headerShown: false,
+          animation: 'slide_from_bottom',
         }}
       />
     </Stack.Navigator>

@@ -107,7 +107,7 @@ const AVAILABLE_ACHIEVEMENTS = [
     id: 'consistency_king',
     name: 'Consistency King',
     description: 'Maintain a 50-day streak of medication adherence',
-    icon: 'crown-outline',
+    icon: 'ribbon-outline',
     progress: 0,
     target: 50,
     completed: false,

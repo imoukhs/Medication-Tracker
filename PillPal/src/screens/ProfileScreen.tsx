@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, TextInput, Modal } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, TextInput, Modal, Platform } from 'react-native';
 import { Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -8,20 +8,28 @@ import { useTheme } from '../context/ThemeContext';
 import { RootStackParamList } from '../types/';
 import AuthService from '../services/AuthService';
 import ProfileService, { ProfileData } from '../services/ProfileService';
+import SupabaseSharedAccessService from '../services/SupabaseSharedAccessService';
+import SettingItem from '../components/SettingItem';
+import { useAuth } from '../context/AuthContext';
 
 type ProfileScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const ProfileScreen = () => {
   const { colors } = useTheme();
+  const { user } = useAuth();
   const navigation = useNavigation<ProfileScreenNavigationProp>();
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editedData, setEditedData] = useState<ProfileData | null>(null);
+  const [pendingInvites, setPendingInvites] = useState<number>(0);
 
   useEffect(() => {
-    loadProfileData();
-  }, []);
+    if (user) {
+      loadProfileData();
+      checkPendingInvites();
+    }
+  }, [user]);
 
   const loadProfileData = async () => {
     try {
@@ -34,6 +42,15 @@ const ProfileScreen = () => {
       setEditedData(data);
     } catch (error) {
       console.error('Error loading profile data:', error);
+    }
+  };
+
+  const checkPendingInvites = async () => {
+    try {
+      const { data } = await SupabaseSharedAccessService.getReceivedInvites();
+      setPendingInvites(data?.length ?? 0);
+    } catch (error) {
+      console.error('Error checking pending invites:', error);
     }
   };
 
@@ -77,7 +94,10 @@ const ProfileScreen = () => {
           onPress: async () => {
             try {
               await AuthService.logout();
-              navigation.replace('Login');
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Login' }],
+              });
             } catch (error) {
               console.error('Error logging out:', error);
               Alert.alert('Error', 'Failed to sign out');
@@ -145,22 +165,19 @@ const ProfileScreen = () => {
     label: string,
     onPress: () => void,
     showArrow: boolean = true,
-    destructive: boolean = false
+    destructive: boolean = false,
+    notificationCount: number = 0
   ) => (
-    <TouchableOpacity
-      style={[styles.optionItem, { borderBottomColor: colors.border }]}
-      onPress={onPress}
-    >
-      <View style={styles.optionIconContainer}>
-        <Ionicons name={icon as any} size={24} color={destructive ? colors.error : colors.primary} />
-      </View>
-      <View style={styles.optionContent}>
-        <Text style={[styles.optionLabel, { color: destructive ? colors.error : colors.text }]}>
-          {label}
-        </Text>
-      </View>
-      {showArrow && <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />}
-    </TouchableOpacity>
+    <View style={styles.optionWrapper}>
+      <SettingItem
+        icon={icon}
+        label={label}
+        description=""
+        onPress={onPress}
+        isDestructive={destructive}
+        notificationCount={notificationCount}
+      />
+    </View>
   );
 
   return (
@@ -172,8 +189,13 @@ const ProfileScreen = () => {
       <ScrollView 
         style={styles.content}
         contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.profileCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={[styles.profileCard, { 
+          backgroundColor: colors.surface, 
+          borderColor: colors.border,
+          shadowColor: colors.elevation
+        }]}>
           <View style={styles.avatarContainer}>
             <TouchableOpacity onPress={handleImagePick}>
               {profileImage ? (
@@ -195,7 +217,10 @@ const ProfileScreen = () => {
                   />
                 </View>
               )}
-              <View style={[styles.editButton, { backgroundColor: colors.primary }]}>
+              <View style={[styles.editButton, { 
+                backgroundColor: colors.primary,
+                borderColor: colors.surface 
+              }]}>
                 <Ionicons name="camera" size={14} color="#fff" />
               </View>
             </TouchableOpacity>
@@ -206,45 +231,46 @@ const ProfileScreen = () => {
               {profileData?.name || 'Your Name'}
             </Text>
             <Text style={[styles.userEmail, { color: colors.textSecondary }]}>
-              {profileData?.email || 'your.email@example.com'}
+              {profileData?.email || user?.email || 'your.email@example.com'}
             </Text>
           </View>
         </View>
 
-        <View style={styles.optionsContainer}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Account Settings</Text>
+        <View style={[styles.optionsContainer, { backgroundColor: colors.surface }]}>
           {renderProfileOption(
             'person',
             'Personal Information',
             () => navigation.navigate('PersonalInformation', { modal: true })
           )}
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
           {renderProfileOption(
             'medical',
             'Medical Information',
             () => navigation.navigate('MedicalInformation', { modal: true })
           )}
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
           {renderProfileOption(
             'notifications',
             'Notification Preferences',
             () => navigation.navigate('NotificationPreferences', { modal: true })
           )}
-          {renderProfileOption(
-            'shield-checkmark',
-            'Privacy & Security',
-            () => navigation.navigate('PrivacyAndSecurity', { modal: true })
-          )}
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
           {renderProfileOption(
             'people',
             'Shared Access',
-            () => navigation.navigate('SharedAccess', { modal: true })
+            () => navigation.navigate('SharedAccess', { modal: true }),
+            true,
+            false,
+            pendingInvites
           )}
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
           {renderProfileOption(
             'trophy',
             'Achievements',
             () => navigation.navigate('Achievements', { modal: true })
           )}
-        </View>
-
-        <View style={[styles.logoutSection]}>
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
           {renderProfileOption(
             'log-out',
             'Sign Out',
@@ -254,6 +280,7 @@ const ProfileScreen = () => {
           )}
         </View>
       </ScrollView>
+
       {renderEditModal()}
     </View>
   );
@@ -264,42 +291,40 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    padding: 20,
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'ios' ? 60 : 20,
     paddingBottom: 20,
+    paddingHorizontal: 20,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
     elevation: 4,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    zIndex: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '700',
     color: '#fff',
   },
   content: {
     flex: 1,
   },
   contentContainer: {
-    paddingVertical: 20,
+    paddingBottom: 24,
   },
   profileCard: {
-    marginHorizontal: 20,
+    margin: 16,
     padding: 20,
     borderRadius: 16,
-    alignItems: 'center',
     borderWidth: 1,
-    marginBottom: 20,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   avatarContainer: {
-    position: 'relative',
+    alignItems: 'center',
     marginBottom: 16,
   },
   avatar: {
@@ -323,76 +348,60 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
   },
   profileInfo: {
     alignItems: 'center',
   },
   userName: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: '600',
     marginBottom: 4,
   },
   userEmail: {
     fontSize: 16,
-  },
-  editProfileButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    marginTop: 16,
-  },
-  editProfileText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
-    marginLeft: 8,
+    marginBottom: 16,
   },
   optionsContainer: {
-    marginBottom: 8,
-    paddingHorizontal: 20,
+    marginHorizontal: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
   },
-  optionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-    borderWidth: 1,
+  optionWrapper: {
+    backgroundColor: 'transparent',
   },
-  optionIconContainer: {
-    width: 40,
-    alignItems: 'center',
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 16,
+    marginLeft: 16,
   },
-  optionContent: {
-    flex: 1,
-    marginLeft: 12,
+  divider: {
+    height: 1,
+    width: '100%',
   },
-  optionLabel: {
-    fontSize: 16,
-    color: '#000',
-  },
-  logoutSection: {
+  logoutButton: {
     marginTop: 24,
-    paddingHorizontal: 20,
+    marginHorizontal: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
   },
   modalContainer: {
     flex: 1,
     justifyContent: 'flex-end',
   },
   modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: '80%',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 24,
+    maxHeight: '90%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    padding: 16,
+    borderBottomWidth: 1,
   },
   modalTitle: {
     fontSize: 18,
@@ -403,20 +412,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   modalForm: {
-    flex: 1,
+    padding: 16,
   },
   inputContainer: {
     marginBottom: 16,
   },
   inputLabel: {
-    fontSize: 14,
+    fontSize: 16,
+    fontWeight: '500',
     marginBottom: 8,
   },
   input: {
-    height: 50,
-    borderRadius: 8,
-    paddingHorizontal: 15,
+    height: 48,
+    borderRadius: 12,
     borderWidth: 1,
+    paddingHorizontal: 16,
+    fontSize: 16,
   },
 });
 

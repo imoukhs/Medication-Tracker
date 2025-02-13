@@ -4,21 +4,26 @@ import { Text } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { FAB } from 'react-native-paper';
 import CircularProgress from '../components/CircularProgress';
 import MedicationCard from '../components/MedicationCard';
 import { RootStackParamList, Medication } from '../types';
 import { useTheme } from '../context/ThemeContext';
+import { useHelp } from '../context/HelpContext';
 import MedicationService from '../services/MedicationService';
 import AdherenceService from '../services/AdherenceService';
+import FABGroup from '../components/FABGroup';
 
 type HomeScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
 
 const HomeScreen = () => {
   const navigation = useNavigation<HomeScreenNavigationProp>();
   const { colors } = useTheme();
+  const { showHelpModal } = useHelp();
   const [medications, setMedications] = useState<Medication[]>([]);
   const [adherenceRate, setAdherenceRate] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -48,7 +53,8 @@ const HomeScreen = () => {
   };
 
   const handleRefresh = () => {
-    loadData();
+    setRefreshing(true);
+    loadData().finally(() => setRefreshing(false));
   };
 
   return (
@@ -82,7 +88,7 @@ const HomeScreen = () => {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={isLoading}
+            refreshing={refreshing}
             onRefresh={handleRefresh}
             tintColor={colors.primary}
           />
@@ -121,12 +127,7 @@ const HomeScreen = () => {
         </View>
       </ScrollView>
 
-      <TouchableOpacity 
-        style={[styles.fab, { backgroundColor: colors.primary }]} 
-        onPress={handleAddMedication}
-      >
-        <Ionicons name="add" size={24} color="#fff" />
-      </TouchableOpacity>
+      <FABGroup />
     </View>
   );
 };
@@ -217,13 +218,11 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    right: 20,
-    bottom: 20,
+    right: 16,
+    bottom: 160,
     width: 56,
     height: 56,
     borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: {
@@ -231,7 +230,7 @@ const styles = StyleSheet.create({
       height: 2,
     },
     shadowOpacity: 0.25,
-    shadowRadius: 4,
+    shadowRadius: 3.84,
   },
 });
 

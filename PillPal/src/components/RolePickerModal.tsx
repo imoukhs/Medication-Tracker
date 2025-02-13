@@ -5,14 +5,12 @@ import {
   Modal,
   TouchableOpacity,
   ScrollView,
-  Dimensions,
+  Pressable,
 } from 'react-native';
 import { Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
-import { UserRole } from '../types/index';
-
-const { height } = Dimensions.get('window');
+import { UserRole } from '../types/user';
 
 interface RolePickerModalProps {
   visible: boolean;
@@ -21,21 +19,31 @@ interface RolePickerModalProps {
   selectedRole: UserRole;
 }
 
-const ROLE_OPTIONS: Array<{ role: UserRole; label: string; description: string }> = [
+interface RoleOption {
+  value: UserRole;
+  label: string;
+  description: string;
+  icon: string;
+}
+
+const ROLE_OPTIONS: RoleOption[] = [
   {
-    role: 'caregiver',
-    label: 'Caregiver',
-    description: 'Can manage medications, view medical info, and receive alerts',
-  },
-  {
-    role: 'healthcare_provider',
+    value: 'healthcare_provider',
     label: 'Healthcare Provider',
-    description: 'Can view and edit medical information and medication details',
+    description: 'Full access to medical information and medication management',
+    icon: 'medkit',
   },
   {
-    role: 'family_member',
+    value: 'caregiver',
+    label: 'Caregiver',
+    description: 'Can manage medications and view medical information',
+    icon: 'heart',
+  },
+  {
+    value: 'family_member',
     label: 'Family Member',
     description: 'Can view medications and receive alerts',
+    icon: 'people',
   },
 ];
 
@@ -47,6 +55,11 @@ const RolePickerModal: React.FC<RolePickerModalProps> = ({
 }) => {
   const { colors } = useTheme();
 
+  const handleSelect = (role: UserRole) => {
+    onSelect(role);
+    onClose();
+  };
+
   return (
     <Modal
       visible={visible}
@@ -54,49 +67,57 @@ const RolePickerModal: React.FC<RolePickerModalProps> = ({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-          <View style={[styles.header, { backgroundColor: colors.surface }]}>
+      <Pressable style={styles.modalOverlay} onPress={onClose}>
+        <View 
+          style={[styles.modalContent, { backgroundColor: colors.background }]}
+        >
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Select Role</Text>
             <TouchableOpacity onPress={onClose}>
               <Ionicons name="close" size={24} color={colors.text} />
             </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>Select Role</Text>
-            <View style={styles.headerRight} />
           </View>
 
           <ScrollView style={styles.optionsList}>
             {ROLE_OPTIONS.map((option) => (
               <TouchableOpacity
-                key={option.role}
+                key={option.value}
                 style={[
                   styles.optionItem,
-                  { backgroundColor: colors.surface },
-                  selectedRole === option.role && {
-                    borderColor: colors.primary,
-                    borderWidth: 2,
+                  { borderBottomColor: colors.border },
+                  selectedRole === option.value && {
+                    backgroundColor: `${colors.primary}10`,
                   },
                 ]}
-                onPress={() => {
-                  onSelect(option.role);
-                  onClose();
-                }}
+                onPress={() => handleSelect(option.value)}
               >
                 <View style={styles.optionContent}>
-                  <Text style={[styles.optionLabel, { color: colors.text }]}>
-                    {option.label}
-                  </Text>
-                  <Text style={[styles.optionDescription, { color: colors.textSecondary }]}>
-                    {option.description}
-                  </Text>
+                  <View style={styles.optionHeader}>
+                    <View style={[styles.iconContainer, { backgroundColor: `${colors.primary}20` }]}>
+                      <Ionicons 
+                        name={option.icon as any} 
+                        size={24} 
+                        color={colors.primary} 
+                      />
+                    </View>
+                    <View style={styles.optionTextContainer}>
+                      <Text style={[styles.optionLabel, { color: colors.text }]}>
+                        {option.label}
+                      </Text>
+                      <Text style={[styles.optionDescription, { color: colors.textSecondary }]}>
+                        {option.description}
+                      </Text>
+                    </View>
+                  </View>
+                  {selectedRole === option.value && (
+                    <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
+                  )}
                 </View>
-                {selectedRole === option.role && (
-                  <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
-                )}
               </TouchableOpacity>
             ))}
           </ScrollView>
         </View>
-      </View>
+      </Pressable>
     </Modal>
   );
 };
@@ -108,36 +129,47 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    maxHeight: height * 0.7,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    maxHeight: '80%',
   },
-  header: {
+  modalHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     padding: 16,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderBottomWidth: 1,
   },
-  headerTitle: {
+  modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-  },
-  headerRight: {
-    width: 24,
   },
   optionsList: {
     padding: 16,
   },
   optionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
+    borderBottomWidth: 1,
+    paddingVertical: 16,
   },
   optionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  optionHeader: {
+    flexDirection: 'row',
+    flex: 1,
+    marginRight: 16,
+  },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  optionTextContainer: {
     flex: 1,
   },
   optionLabel: {
@@ -147,6 +179,7 @@ const styles = StyleSheet.create({
   },
   optionDescription: {
     fontSize: 14,
+    lineHeight: 20,
   },
 });
 
